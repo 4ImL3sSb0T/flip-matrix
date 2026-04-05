@@ -1,0 +1,4 @@
+- Project: H7RTOS, an STM32H750 embedded firmware project generated from STM32CubeMX and built with CMake/Ninja on Windows.
+- Tech stack: C11, ARM GCC (`arm-none-eabi-*`), STM32 HAL, CMSIS, FreeRTOS, linker script/startup assembly.
+- Workflow note: agent-driven CMake build verification is currently unreliable in this repository, so final build validation should be done manually by the developer.
+- Layout: application code in `Core/Inc` and `Core/Src`; vendor code in `Drivers/` and `Middlewares/`; build config in `CMakeLists.txt`, `CMakePresets.json`, and `cmake/`; docs in `docs/` and `docs/plans/`; hardware config in `H7RTOS.ioc`, `STM32H750XX_FLASH.ld`, `startup_stm32h750xx.s`.

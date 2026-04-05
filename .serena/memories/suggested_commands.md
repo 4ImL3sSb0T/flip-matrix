@@ -1,0 +1,7 @@
+- Manual debug configure: `cmake --preset Debug`
+- Manual debug build: `cmake --build --preset Debug`
+- Manual release configure: `cmake --preset Release`
+- Manual release build: `cmake --build --preset Release`
+- Note: the agent-driven CMake build flow is currently unreliable in this repository; final verification should be done by you manually.
+- Inspect produced artifact: `build/Debug/H7RTOS.elf` (or `build/Release/H7RTOS.elf`)
+- Requirement: GNU Arm Embedded toolchain (`arm-none-eabi-*`) must be on `PATH`.

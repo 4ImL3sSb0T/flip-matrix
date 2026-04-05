@@ -1,0 +1,6 @@
+- Follow STM32CubeMX/C HAL style already present in `Core/`: 2-space indentation, K&R braces, `snake_case` functions/locals, module-oriented filenames like `gpio.c` and `usart.h`.
+- Preserve `/* USER CODE BEGIN ... */` / `/* USER CODE END ... */` regions so CubeMX regeneration does not overwrite custom logic.
+- Prefer changing `Core/` application sources rather than vendor code in `Drivers/` or `Middlewares/`.
+- When finishing a task, you should manually build the `Debug` preset; do not rely only on the agent to run CMake here because that flow is currently unreliable in this repository.
+- For runtime-sensitive changes, also perform hardware smoke testing on the STM32H750 target.
+- Commit style in history follows Conventional Commits with scopes, e.g. `fix(main): ...`, `refactor(memory): ...`, `chore(project): ...`.
