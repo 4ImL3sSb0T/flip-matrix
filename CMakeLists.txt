@@ -40,6 +40,12 @@ add_subdirectory(cmake/stm32cubemx)
 # Keep FreeRTOS heap ownership outside CubeMX-generated headers.
 target_compile_definitions(stm32cubemx INTERFACE
     configAPPLICATION_ALLOCATED_HEAP=1
+        ARM_MATH_CM7
+)
+
+# Add project-specific include paths that should survive CubeMX regeneration.
+target_include_directories(stm32cubemx INTERFACE
+    ${CMAKE_SOURCE_DIR}/Drivers/CMSIS/DSP/Include
 )
 
 # Link directories setup
