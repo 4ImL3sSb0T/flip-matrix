@@ -37,6 +37,11 @@ add_executable(${CMAKE_PROJECT_NAME})
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
 
+# Keep FreeRTOS heap ownership outside CubeMX-generated headers.
+target_compile_definitions(stm32cubemx INTERFACE
+    configAPPLICATION_ALLOCATED_HEAP=1
+)
+
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths
