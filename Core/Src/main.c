@@ -119,7 +119,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    if (HAL_GPIO_ReadPin(USR_KEY_GPIO_Port, USR_KEY_Pin) == GPIO_PIN_RESET)
+    if (HAL_GPIO_ReadPin(USR_KEY_GPIO_Port, USR_KEY_Pin) == GPIO_PIN_SET)
       HAL_GPIO_TogglePin(BLUE_GPIO_Port, BLUE_Pin);
     /* USER CODE END WHILE */
 
