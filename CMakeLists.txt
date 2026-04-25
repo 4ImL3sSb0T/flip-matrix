@@ -46,6 +46,7 @@ target_compile_definitions(stm32cubemx INTERFACE
 # Add project-specific include paths that should survive CubeMX regeneration.
 target_include_directories(stm32cubemx INTERFACE
     ${CMAKE_SOURCE_DIR}/Drivers/CMSIS/DSP/Include
+        ${CMAKE_SOURCE_DIR}/src
 )
 
 # Link directories setup
