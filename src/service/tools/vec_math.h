@@ -13,6 +13,7 @@
 
 #include "common_def.h"
 #include <stdbool.h>
+#include <stdint.h>
 
 #ifdef USE_CMSIS_DSP
     #include "arm_math.h"

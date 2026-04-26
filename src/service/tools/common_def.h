@@ -1,7 +1,7 @@
 #ifndef _COMMON_DEF_H_
 #define _COMMON_DEF_H_
 
-#include "zf_common_debug.h"
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {

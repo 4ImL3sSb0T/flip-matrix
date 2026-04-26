@@ -46,7 +46,6 @@ target_compile_definitions(stm32cubemx INTERFACE
 # Add project-specific include paths that should survive CubeMX regeneration.
 target_include_directories(stm32cubemx INTERFACE
     ${CMAKE_SOURCE_DIR}/Drivers/CMSIS/DSP/Include
-        ${CMAKE_SOURCE_DIR}/src
 )
 
 # Link directories setup
@@ -54,14 +53,22 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths
 )
 
+set(USER_SOURCES
+    src/service/imu/imu_service.c
+    src/service/imu/MadgwickAHRS/MadgwickAHRS.c
+    src/service/tools/common_def.c
+    src/service/tools/vec_math.c
+)
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/rtos_heap.c
+    ${USER_SOURCES}
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
+    ${CMAKE_SOURCE_DIR}/src
 )
 
 # Add project symbols (macros)

@@ -11,6 +11,7 @@
 #include "vec_math.h"
 #include <math.h>
 #include <string.h>
+#include <stdio.h>
 
 /* ========================================================================
  * 数学常量
