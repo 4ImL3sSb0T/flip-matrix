@@ -9,26 +9,13 @@ Licensed under the MIT License. See firmware/LICENSE for the full text.
 Modifications/port to C:
   Copyright 2026 cccAboy
 */
-#include "flip.h"
-
-#include "esp_heap_caps.h"
+#include "flip_core.h"
 
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-
-#ifndef MAX
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#endif
-#ifndef MIN
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-#endif
-
-#define LED_VAL_MAX_F 20.0f
-#define DENSITY_CLAMP_F 1.2f
-#define GAMMA_F 0.6f
 
 // gamma LUT
 static bool s_gamma_inited = false;
@@ -44,54 +31,7 @@ static void gamma_init_once(void) {
     s_gamma_inited = true;
 }
 
-static inline int clamp_i(int x, int lo, int hi) {
-    if (x < lo)
-        return lo;
-    if (x > hi)
-        return hi;
-    return x;
-}
-static inline float clamp_f(float x, float lo, float hi) {
-    if (x < lo)
-        return lo;
-    if (x > hi)
-        return hi;
-    return x;
-}
-
-struct FlipFluid {
-    float density;
-    int f_num_x, f_num_y;
-    float h;
-    float f_inv_spacing;
-    int f_num_cells;
-
-    float *u, *v, *du, *dv, *prev_u, *prev_v, *p, *s;
-    int32_t* cell_type;
-
-    int max_particles;
-    int num_particles;
-    float* particle_pos;
-    float* particle_vel;
-    float* particle_density;
-    float particle_rest_density;
-
-    float particle_radius;
-    float p_inv_spacing;
-    int p_num_x, p_num_y, p_num_cells;
-    int32_t* num_cell_particles;
-    int32_t* first_cell_particle;
-    int32_t* cell_particle_ids;
-
-    int AIR_CELL, FLUID_CELL, SOLID_CELL;
-
-    float gravity_scale;
-    int push_iters;
-    int pressure_iters;
-    float flip_ratio;
-};
-
-void flip_without_dsps_destroy(FlipFluid* f);
+void flip_destroy(FlipFluid* f);
 
 static void integrate_particles(int n, float* pos, float* vel, float dt,
                                 float gx, float gy) {
@@ -519,13 +459,13 @@ static void get_led_grid(const FlipFluid* f, float* out_grid, int visible_x,
 }
 
 // 对外 API
-void flip_without_dsps_set_gravity_scale(FlipFluid* f, float gravity_scale) {
+void flip_set_gravity_scale(FlipFluid* f, float gravity_scale) {
     if (!f)
         return;
     f->gravity_scale = gravity_scale;
 }
 
-void flip_without_dsps_set_solver_quality(FlipFluid* f, int push_iters,
+void flip_set_solver_quality(FlipFluid* f, int push_iters,
                                           int pressure_iters, float flip_ratio) {
     if (!f)
         return;
@@ -565,7 +505,7 @@ static int alloc_i32(int32_t** p, int count) {
     return (*p != NULL);
 }
 
-FlipFluid* flip_without_dsps_create(float sim_w, float sim_h, int visible_res,
+FlipFluid* flip_create(float sim_w, float sim_h, int visible_res,
                                     float fill_ratio) {
     int sim_res = visible_res + 2;
     float tank_w = sim_w;
@@ -631,7 +571,7 @@ FlipFluid* flip_without_dsps_create(float sim_w, float sim_h, int visible_res,
         !alloc_i32(&f->num_cell_particles, f->p_num_cells) ||
         !alloc_i32(&f->first_cell_particle, f->p_num_cells + 1) ||
         !alloc_i32(&f->cell_particle_ids, f->max_particles)) {
-        flip_without_dsps_destroy(f);
+        flip_destroy(f);
         return NULL;
     }
     // 初始化
@@ -665,7 +605,7 @@ FlipFluid* flip_without_dsps_create(float sim_w, float sim_h, int visible_res,
     return f;
 }
 
-void flip_without_dsps_destroy(FlipFluid* f) {
+void flip_destroy(FlipFluid* f) {
     if (!f)
         return;
     free(f->u);
@@ -686,7 +626,7 @@ void flip_without_dsps_destroy(FlipFluid* f) {
     free(f);
 }
 
-void flip_without_dsps_step(FlipFluid* f, float dt, float gx, float gy) {
+void flip_step(FlipFluid* f, float dt, float gx, float gy) {
     if (!f)
         return;
 
@@ -733,7 +673,7 @@ void flip_without_dsps_step(FlipFluid* f, float dt, float gx, float gy) {
                         f->AIR_CELL, f->FLUID_CELL, f->SOLID_CELL);
 }
 
-void flip_without_dsps_get_led_grid(const FlipFluid* f, float* out_grid) {
+void flip_get_led_grid(const FlipFluid* f, float* out_grid) {
     if (!f || !out_grid)
         return;
 
