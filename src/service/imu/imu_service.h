@@ -11,6 +11,7 @@ typedef struct
     exit_code_t (*imu_get_acc)(vec3f* acc);
     exit_code_t (*imu_get_gyro)(vec3f* gyro);
     exit_code_t (*imu_get_mag)(vec3f* mag);
+    bool is_initialized;
 } imu_sensor_t;
 
 typedef enum
@@ -20,9 +21,8 @@ typedef enum
 } imu_mode_t;
 
 exit_code_t imu_service_init(imu_sensor_t* imu_sensor);
+exit_code_t imu_service_start();
 exit_code_t imu_service_deinit();
-
-exit_code_t imu_service_update(float dt);
 
 exit_code_t imu_service_get_euler(vec3f* euler);
 exit_code_t imu_service_get_raw(vec3f* acc, vec3f* gyro, vec3f* mag);
