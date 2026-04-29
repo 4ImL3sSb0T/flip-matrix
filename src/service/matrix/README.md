@@ -20,7 +20,7 @@
   swap(back, front)
         │
         ▼
-  encode front_buffer -> spi_temp
+  ws2812b_write_async(front_buffer, spi_temp)
         │
         ▼
   HAL_SPI_Transmit_DMA(spi_temp)
@@ -29,7 +29,7 @@
   SPI DMA 完成中断释放 busy 状态
 ```
 
-写入接口只修改 `back_buffer`，不会自动刷新显示。需要显示新内容时，调用 `matrix_write_async()` 手动提交一帧。提交时会等待上一帧 DMA 完成，最长等待 `MATRIX_DMA_WAIT_TIMEOUT_MS`，默认 20ms；超时会 abort 当前 DMA 并返回 `EXIT_TIMEOUT`。
+写入接口只修改 `back_buffer`，不会自动刷新显示。需要显示新内容时，调用 `matrix_write_async()` 手动提交一帧。提交时会通过 WS2812B 驱动等待上一帧 DMA 完成，最长等待 `MATRIX_DMA_WAIT_TIMEOUT_MS`，默认 20ms；超时会 abort 当前 DMA 并返回 `EXIT_TIMEOUT`。
 
 ## API
 
@@ -68,7 +68,7 @@ typedef struct {
 
 | 函数 | 说明 |
 |------|------|
-| `matrix_write_async()` | 手动提交 back buffer：等待上一帧 DMA 完成，交换 front/back，编码并启动新的 SPI DMA |
+| `matrix_write_async()` | 手动提交 back buffer：等待上一帧 DMA 完成，交换 front/back，调用 WS2812B 驱动编码并启动新的 SPI DMA |
 
 `matrix_write_async()` 启动 DMA 后立即返回，不等待本帧发送完成。下一次提交会先等待上一帧完成，等待超时由 `MATRIX_DMA_WAIT_TIMEOUT_MS` 控制。
 
@@ -129,23 +129,23 @@ static uint32_t xy_to_index(uint32_t row, uint32_t col)
 | 资源 | 保护方式 |
 |------|----------|
 | `back_buffer` / `front_buffer` 指针 | `matrix_mutex` |
-| `spi_temp` | 仅在 `matrix_write_async()` 持有 `matrix_mutex` 时重编码 |
-| SPI DMA busy 状态 | `driver_ws2812b_interface.c` 内部状态和 DMA 完成中断 |
+| `spi_temp` | 由 `driver_ws2812b` 在 `matrix_write_async()` 持有 `matrix_mutex` 时重编码 |
+| SPI DMA busy 状态 | `driver_ws2812b` 通过底层 interface 等待/abort，DMA 完成中断在 interface 中释放状态 |
 
 不要从 ISR 调用 `matrix_*` API。这些 API 使用 FreeRTOS mutex 和可能的有限等待。
 
 ## SPI 传输
 
 - 颜色顺序：GRB
-- 编码：16 SPI bit 编码 1 个 WS2812B bit，`0xFFF8` 表示逻辑 1，`0xE000` 表示逻辑 0
+- 编码由 `driver_ws2812b` 完成：16 SPI bit 编码 1 个 WS2812B bit，`0xFFF8` 表示逻辑 1，`0xE000` 表示逻辑 0
 - 每 LED 颜色数据 48 字节
 - 每 LED 前置 reset 数据 64 字节，来自 `WS2812B_EACH_RESET_BIT_FRAME_LEN / 8`
 - DMA 启动后本帧不阻塞等待，完成中断清除 busy 状态
 
 ## 依赖
 
-- `src/bsp/ws2812b/driver_ws2812b.c`
-- `src/bsp/ws2812b/driver_ws2812b_interface.c`
+- `src/bsp/ws2812b/driver_ws2812b.c` — WS2812B 编码和异步写接口
+- `src/bsp/ws2812b/driver_ws2812b_interface.c` — SPI DMA 硬件适配
 - `Core/Src/spi.c`
 - `Core/Src/dma.c`
 - FreeRTOS mutex 和 semaphore

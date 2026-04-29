@@ -26,12 +26,12 @@ FLIP/User task
   │ front_buffer │
   │ (snapshot)   │
   └──────┬───────┘
-         │ encode -> spi_temp
+         │ ws2812b_write_async(front_buffer, spi_temp)
          ▼
   HAL_SPI_Transmit_DMA(spi_temp) -> WS2812B strip
 ```
 
-`matrix_write_async()` waits for the previous DMA transfer up to `MATRIX_DMA_WAIT_TIMEOUT_MS`, swaps front/back, encodes the front buffer, starts DMA, and returns without waiting for the new transfer to finish.
+`matrix_write_async()` waits for the previous DMA transfer up to `MATRIX_DMA_WAIT_TIMEOUT_MS`, swaps front/back, calls `driver_ws2812b` to encode and start DMA, and returns without waiting for the new transfer to finish.
 
 ## API
 
@@ -81,8 +81,8 @@ Each LED uses 48 bytes of color encoding. The current reset segment reserves 64 
 ## Thread Safety
 
 - `matrix_mutex` protects back/front pointer swaps and framebuffer writes.
-- `spi_temp` is rewritten only from `matrix_write_async()` while holding `matrix_mutex`.
-- DMA busy state is owned by `driver_ws2812b_interface.c`.
+- `spi_temp` is rewritten by `driver_ws2812b` only from `matrix_write_async()` while holding `matrix_mutex`.
+- DMA busy state is exposed by `driver_ws2812b` and implemented by the interface layer.
 - Matrix APIs are task-context APIs and should not be called from ISR.
 
 ## Startup / Shutdown
@@ -116,7 +116,8 @@ static uint32_t xy_to_index(uint32_t row, uint32_t col)
 
 ## Dependencies
 
-- `driver_ws2812b.h` / `driver_ws2812b_interface.h`
+- `driver_ws2812b.h` / `driver_ws2812b.c`
+- `driver_ws2812b_interface.h` / `driver_ws2812b_interface.c`
 - `service/tools/common_def.h`
 - FreeRTOS mutex and semaphore
 - `<string.h>`

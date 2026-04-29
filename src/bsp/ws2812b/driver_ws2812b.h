@@ -71,6 +71,9 @@ typedef struct ws2812b_handle_s
     uint8_t (*spi_10mhz_init)(void);                             /**< point to a spi_10mhz_init function address */
     uint8_t (*spi_deinit)(void);                                 /**< point to a spi_deinit function address */
     uint8_t (*spi_write_cmd)(uint8_t *buf, uint16_t len);        /**< point to a spi_write_cmd function address */
+    uint8_t (*spi_start_dma)(uint8_t *buf, uint16_t len);        /**< point to a spi dma start function address */
+    uint8_t (*spi_wait_dma_done)(uint32_t timeout_ms);           /**< point to a spi dma wait function address */
+    uint8_t (*spi_abort_dma)(void);                              /**< point to a spi dma abort function address */
     void (*delay_ms)(uint32_t ms);                               /**< point to a delay_ms function address */
     void (*debug_print)(const char *const fmt, ...);             /**< point to a debug_print function address */
     uint8_t inited;                                              /**< inited flag */
@@ -134,6 +137,30 @@ typedef struct ws2812b_info_s
  * @note      none
  */
 #define DRIVER_WS2812B_LINK_SPI_WRITE_COMMAND(HANDLE, FUC)       (HANDLE)->spi_write_cmd = FUC
+
+/**
+ * @brief     link spi_start_dma function
+ * @param[in] HANDLE pointer to a ws2812b handle structure
+ * @param[in] FUC pointer to a spi_start_dma function address
+ * @note      none
+ */
+#define DRIVER_WS2812B_LINK_SPI_START_DMA(HANDLE, FUC)           (HANDLE)->spi_start_dma = FUC
+
+/**
+ * @brief     link spi_wait_dma_done function
+ * @param[in] HANDLE pointer to a ws2812b handle structure
+ * @param[in] FUC pointer to a spi_wait_dma_done function address
+ * @note      none
+ */
+#define DRIVER_WS2812B_LINK_SPI_WAIT_DMA_DONE(HANDLE, FUC)       (HANDLE)->spi_wait_dma_done = FUC
+
+/**
+ * @brief     link spi_abort_dma function
+ * @param[in] HANDLE pointer to a ws2812b handle structure
+ * @param[in] FUC pointer to a spi_abort_dma function address
+ * @note      none
+ */
+#define DRIVER_WS2812B_LINK_SPI_ABORT_DMA(HANDLE, FUC)           (HANDLE)->spi_abort_dma = FUC
 
 /**
  * @brief     link delay_ms function
@@ -214,6 +241,52 @@ uint8_t ws2812b_deinit(ws2812b_handle_t *handle);
  * @note      none
  */
 uint8_t ws2812b_write(ws2812b_handle_t *handle, uint32_t *rgb, uint32_t len, uint8_t *temp, uint32_t temp_len);
+
+/**
+ * @brief     write reset and color frame with asynchronous spi dma
+ * @param[in] *handle pointer to a ws2812b handle structure
+ * @param[in] *rgb pointer to a rgb color buffer
+ * @param[in] len rgb length
+ * @param[in] *temp pointer to a temp buffer
+ * @param[in] temp_len temp buffer length
+ * @param[in] wait_timeout_ms maximum wait time for previous dma transfer
+ * @return    status code
+ *            - 0 success
+ *            - 1 write command failed
+ *            - 2 handle is NULL
+ *            - 3 handle is not initialized or async interface is not linked
+ *            - 4 rgb is null
+ *            - 5 temp is null
+ *            - 6 temp buffer is too small
+ *            - 7 previous dma transfer timeout
+ * @note      temp buffer must remain valid until dma complete
+ */
+uint8_t ws2812b_write_async(ws2812b_handle_t *handle, uint32_t *rgb, uint32_t len, uint8_t *temp, uint32_t temp_len, uint32_t wait_timeout_ms);
+
+/**
+ * @brief     wait for asynchronous spi dma write complete
+ * @param[in] *handle pointer to a ws2812b handle structure
+ * @param[in] timeout_ms maximum wait time in milliseconds
+ * @return    status code
+ *            - 0 success
+ *            - 1 wait failed
+ *            - 2 handle is NULL
+ *            - 3 handle is not initialized or async interface is not linked
+ * @note      none
+ */
+uint8_t ws2812b_wait_async_done(ws2812b_handle_t *handle, uint32_t timeout_ms);
+
+/**
+ * @brief     abort asynchronous spi dma write
+ * @param[in] *handle pointer to a ws2812b handle structure
+ * @return    status code
+ *            - 0 success
+ *            - 1 abort failed
+ *            - 2 handle is NULL
+ *            - 3 handle is not initialized or async interface is not linked
+ * @note      none
+ */
+uint8_t ws2812b_abort_async(ws2812b_handle_t *handle);
 
 /**
  * @brief     write the reset frame

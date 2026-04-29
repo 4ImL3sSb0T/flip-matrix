@@ -249,6 +249,122 @@ uint8_t ws2812b_write(ws2812b_handle_t *handle, uint32_t *rgb, uint32_t len, uin
     return 0;                                                               /* success return 0 */
 }
 
+uint8_t ws2812b_write_async(ws2812b_handle_t *handle, uint32_t *rgb, uint32_t len, uint8_t *temp, uint32_t temp_len, uint32_t wait_timeout_ms)
+{
+    uint32_t i;
+    uint32_t reset_size;
+    uint32_t color_size;
+    uint32_t total_size;
+
+    if (handle == NULL)                                                     /* check handle */
+    {
+        return 2;                                                           /* return error */
+    }
+    if (handle->inited != 1)                                                /* check handle initialization */
+    {
+        return 3;                                                           /* return error */
+    }
+    if ((handle->spi_start_dma == NULL) || (handle->spi_wait_dma_done == NULL) ||
+        (handle->spi_abort_dma == NULL))                                    /* check async interface */
+    {
+        handle->debug_print("ws2812b: async spi interface is null.\n");      /* async interface is null */
+
+        return 3;                                                           /* return error */
+    }
+    if (rgb == NULL)                                                        /* check rgb */
+    {
+        handle->debug_print("ws2812b: rgb is null.\n");                     /* rgb is null */
+
+        return 4;                                                           /* return error */
+    }
+    if (temp == NULL)                                                       /* check temp */
+    {
+        handle->debug_print("ws2812b: temp is null.\n");                    /* temp is null */
+
+        return 5;                                                           /* return error */
+    }
+
+    reset_size = (WS2812B_EACH_RESET_BIT_FRAME_LEN * len) / 8;              /* set reset size */
+    color_size = (24 * 16 * len) / 8;                                       /* set color size */
+    total_size = reset_size + color_size;                                   /* set total size */
+    if (total_size > temp_len)                                              /* check temp length */
+    {
+        handle->debug_print("ws2812b: temp buffer is too small and "
+                            "size will be %d.\n", total_size);              /* temp buffer is too small */
+
+        return 6;                                                           /* return error */
+    }
+    if (total_size > UINT16_MAX)                                            /* check spi length */
+    {
+        handle->debug_print("ws2812b: spi buffer is too large and "
+                            "size will be %d.\n", total_size);              /* spi buffer is too large */
+
+        return 6;                                                           /* return error */
+    }
+
+    if (handle->spi_wait_dma_done(wait_timeout_ms) != 0)                    /* wait previous dma */
+    {
+        (void)handle->spi_abort_dma();                                      /* abort timeout transfer */
+
+        return 7;                                                           /* return error */
+    }
+
+    memset(temp, 0, reset_size);                                            /* set reset frame */
+    for (i = 0; i < len; i++)                                               /* set color frame */
+    {
+        a_ws2812b_write_one_frame(rgb[i], &temp[reset_size + i * 48]);       /* set color */
+    }
+
+    if (handle->spi_start_dma(temp, (uint16_t)total_size) != 0)              /* start dma */
+    {
+        handle->debug_print("ws2812b: start dma failed.\n");                /* start dma failed */
+
+        return 1;                                                           /* return error */
+    }
+
+    return 0;                                                               /* success return 0 */
+}
+
+uint8_t ws2812b_wait_async_done(ws2812b_handle_t *handle, uint32_t timeout_ms)
+{
+    if (handle == NULL)                                                     /* check handle */
+    {
+        return 2;                                                           /* return error */
+    }
+    if (handle->inited != 1)                                                /* check handle initialization */
+    {
+        return 3;                                                           /* return error */
+    }
+    if (handle->spi_wait_dma_done == NULL)                                  /* check async interface */
+    {
+        handle->debug_print("ws2812b: async spi interface is null.\n");      /* async interface is null */
+
+        return 3;                                                           /* return error */
+    }
+
+    return (handle->spi_wait_dma_done(timeout_ms) == 0) ? 0 : 1;            /* wait dma */
+}
+
+uint8_t ws2812b_abort_async(ws2812b_handle_t *handle)
+{
+    if (handle == NULL)                                                     /* check handle */
+    {
+        return 2;                                                           /* return error */
+    }
+    if (handle->inited != 1)                                                /* check handle initialization */
+    {
+        return 3;                                                           /* return error */
+    }
+    if (handle->spi_abort_dma == NULL)                                      /* check async interface */
+    {
+        handle->debug_print("ws2812b: async spi interface is null.\n");      /* async interface is null */
+
+        return 3;                                                           /* return error */
+    }
+
+    return (handle->spi_abort_dma() == 0) ? 0 : 1;                          /* abort dma */
+}
+
 /**
  * @brief     write the reset frame
  * @param[in] *handle pointer to a ws2812b handle structure

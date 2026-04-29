@@ -38,29 +38,6 @@ static uint32_t xy_to_index(uint32_t row, uint32_t col)
   return row * matrix_cfg.cols + col;
 }
 
-static void encode_pixel(uint32_t rgb, uint8_t temp[MATRIX_COLOR_BYTES_PER_LED])
-{
-  const uint16_t one_code = 0xFFF8U;
-  const uint16_t zero_code = 0xE000U;
-  uint8_t r = (uint8_t)((rgb >> 16) & 0xFF);
-  uint8_t g = (uint8_t)((rgb >> 8) & 0xFF);
-  uint8_t b = (uint8_t)(rgb & 0xFF);
-  uint32_t color = ((uint32_t)g << 16) | ((uint32_t)r << 8) | b;
-  uint32_t point = 0;
-
-  memset(temp, 0, MATRIX_COLOR_BYTES_PER_LED);
-
-  for (uint32_t i = 0; i < 24; i++) {
-    uint16_t code = (((color >> (23 - i)) & 0x01U) != 0U) ? one_code : zero_code;
-    for (uint32_t j = 0; j < 16; j++) {
-      if (((code >> (15 - j)) & 0x01U) != 0U) {
-        temp[point / 8] |= (uint8_t)(1U << (7 - (point % 8)));
-      }
-      point++;
-    }
-  }
-}
-
 static uint32_t matrix_led_count(void)
 {
   return matrix_cfg.rows * matrix_cfg.cols;
@@ -74,12 +51,12 @@ static uint32_t matrix_tx_len(uint32_t led_count)
 static exit_code_t matrix_commit_locked(void)
 {
   uint32_t led_count = matrix_led_count();
-  uint32_t reset_len = led_count * MATRIX_RESET_BYTES_PER_LED;
   uint32_t tx_len = matrix_tx_len(led_count);
   uint32_t *tmp;
+  uint8_t ret;
 
-  if (ws2812b_interface_spi_wait_dma_done(MATRIX_DMA_WAIT_TIMEOUT_MS) != 0) {
-    (void)ws2812b_interface_spi_abort_dma();
+  if (ws2812b_wait_async_done(&ws2812b_handle, MATRIX_DMA_WAIT_TIMEOUT_MS) != 0) {
+    (void)ws2812b_abort_async(&ws2812b_handle);
     return EXIT_TIMEOUT;
   }
 
@@ -87,12 +64,18 @@ static exit_code_t matrix_commit_locked(void)
   front_buffer = back_buffer;
   back_buffer = tmp;
 
-  memset(spi_temp, 0, reset_len);
-  for (uint32_t i = 0; i < led_count; i++) {
-    encode_pixel(front_buffer[i], &spi_temp[reset_len + i * MATRIX_COLOR_BYTES_PER_LED]);
+  ret = ws2812b_write_async(&ws2812b_handle, front_buffer, led_count,
+                            spi_temp, tx_len, 0);
+  if (ret == 6) {
+    tmp = front_buffer;
+    front_buffer = back_buffer;
+    back_buffer = tmp;
+    return EXIT_NO_RESOURCE;
   }
-
-  if (ws2812b_interface_spi_start_dma(spi_temp, (uint16_t)tx_len) != 0) {
+  if (ret != 0) {
+    tmp = front_buffer;
+    front_buffer = back_buffer;
+    back_buffer = tmp;
     return EXIT_BUSY;
   }
 
@@ -124,6 +107,9 @@ exit_code_t matrix_init(const matrix_config_t *config)
   DRIVER_WS2812B_LINK_SPI_10MHZ_INIT(&ws2812b_handle, ws2812b_interface_spi_10mhz_init);
   DRIVER_WS2812B_LINK_SPI_DEINIT(&ws2812b_handle, ws2812b_interface_spi_deinit);
   DRIVER_WS2812B_LINK_SPI_WRITE_COMMAND(&ws2812b_handle, ws2812b_interface_spi_write_cmd);
+  DRIVER_WS2812B_LINK_SPI_START_DMA(&ws2812b_handle, ws2812b_interface_spi_start_dma);
+  DRIVER_WS2812B_LINK_SPI_WAIT_DMA_DONE(&ws2812b_handle, ws2812b_interface_spi_wait_dma_done);
+  DRIVER_WS2812B_LINK_SPI_ABORT_DMA(&ws2812b_handle, ws2812b_interface_spi_abort_dma);
   DRIVER_WS2812B_LINK_DELAY_MS(&ws2812b_handle, ws2812b_interface_delay_ms);
   DRIVER_WS2812B_LINK_DEBUG_PRINT(&ws2812b_handle, ws2812b_interface_debug_print);
 
@@ -141,8 +127,8 @@ exit_code_t matrix_deinit(void)
 {
   if (!initialized) return EXIT_NOT_INITIALIZED;
 
-  if (ws2812b_interface_spi_wait_dma_done(MATRIX_DMA_WAIT_TIMEOUT_MS) != 0) {
-    (void)ws2812b_interface_spi_abort_dma();
+  if (ws2812b_wait_async_done(&ws2812b_handle, MATRIX_DMA_WAIT_TIMEOUT_MS) != 0) {
+    (void)ws2812b_abort_async(&ws2812b_handle);
   }
   ws2812b_deinit(&ws2812b_handle);
 
