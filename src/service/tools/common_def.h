@@ -2,6 +2,7 @@
 #define _COMMON_DEF_H_
 
 #include <stddef.h>
+#include "stdint.h"
 
 #ifdef __cplusplus
 extern "C" {
