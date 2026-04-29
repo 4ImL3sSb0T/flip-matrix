@@ -65,7 +65,7 @@ static exit_code_t matrix_commit_locked(void)
   back_buffer = tmp;
 
   ret = ws2812b_write_async(&ws2812b_handle, front_buffer, led_count,
-                            spi_temp, tx_len, 0);
+                            spi_temp, tx_len, MATRIX_DMA_WAIT_TIMEOUT_MS);
   if (ret == 6) {
     tmp = front_buffer;
     front_buffer = back_buffer;
