@@ -25,7 +25,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "service/matrix/matrix.h"
+#include "service/flip/flip_core.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -114,6 +115,17 @@ void MX_FREERTOS_Init(void) {
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN StartDefaultTask */
+  matrix_config_t matrix_config = {
+    .cols = 16,
+    .rows = 16,
+    .topology = MATRIX_TOPO_SNAKE
+  };
+
+  matrix_init(&matrix_config);
+
+  FlipFluid* flip_handle = {0};
+  flip_handle = flip_create(1.0f, 1.0f, 16, 0.6f);
+
   /* Infinite loop */
   for(;;)
   {
