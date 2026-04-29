@@ -15,7 +15,7 @@
 extern "C" {
 #endif /**< defined __cplusplus */
 
-#include "shell.h"
+#include "../shell.h"
 
 #define     LOG_VERSION        "1.0.1"
 

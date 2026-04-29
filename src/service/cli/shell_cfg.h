@@ -16,6 +16,9 @@
 #include SHELL_CFG_USER
 #endif
 
+#include "FreeRTOS.h"
+#include "task.h"
+
 #ifndef SHELL_TASK_WHILE
 /**
  * @brief 是否使用默认shell任务while循环
@@ -39,7 +42,7 @@
  * @brief 是否使用shell伴生对象
  *        一些扩展的组件(文件系统支持，日志工具等)需要使用伴生对象
  */
-#define     SHELL_USING_COMPANION       0
+#define     SHELL_USING_COMPANION       1
 #endif /** SHELL_USING_COMPANION */
 
 #ifndef SHELL_SUPPORT_END_LINE
@@ -180,7 +183,7 @@
  *        定义此宏为获取系统Tick，如`HAL_GetTick()`
  * @note 此宏不定义时无法使用双击tab补全命令help，无法使用shell超时锁定
  */
-#define     SHELL_GET_TICK()            0
+#define     SHELL_GET_TICK()            xTaskGetTickCount()
 #endif /** SHELL_GET_TICK */
 
 #ifndef SHELL_USING_LOCK
@@ -196,7 +199,7 @@
  * @brief shell内存分配
  *        shell本身不需要此接口，若使用shell伴生对象，需要进行定义
  */
-#define     SHELL_MALLOC(size)          0
+#define     SHELL_MALLOC(size)          pvPortMalloc(size)
 #endif /** SHELL_MALLOC */
 
 #ifndef SHELL_FREE
@@ -204,7 +207,7 @@
  * @brief shell内存释放
  *        shell本身不需要此接口，若使用shell伴生对象，需要进行定义
  */
-#define     SHELL_FREE(obj)             0
+#define     SHELL_FREE(obj)             vPortFree(obj)
 #endif /** SHELL_FREE */
 
 #ifndef SHELL_SHOW_INFO

@@ -11,7 +11,7 @@
 #include "log.h"
 #include "stdio.h"
 #include "stdarg.h"
-#include "shell.h"
+#include "../shell.h"
 
 #if LOG_USING_COLOR == 1
 #define memPrintHead CSI(31) \

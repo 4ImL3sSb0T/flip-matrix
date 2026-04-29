@@ -54,8 +54,14 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 set(USER_SOURCES
+    src/bsp/uart/shell_port.c
     src/bsp/ws2812b/driver_ws2812b.c
     src/bsp/ws2812b/driver_ws2812b_interface.c
+    src/service/cli/shell_companion.c
+    src/service/cli/shell.c
+    src/service/cli/shell_ext.c
+    src/service/cli/port/shell_port.c
+    src/service/cli/log/log.c
     src/service/imu/imu_service.c
     src/service/imu/MadgwickAHRS/MadgwickAHRS.c
     src/service/matrix/matrix.c
