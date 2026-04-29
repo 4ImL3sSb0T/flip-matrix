@@ -246,6 +246,7 @@ SECTIONS
     *(.dma_buffer*)
     . = ALIGN(32);
   } >RAM_D2
+  ASSERT(SIZEOF(.dma_buffer) <= 32K, ".dma_buffer exceeds MPU non-cacheable region")
 
   /* User_heap_stack section, used to check that there is enough RAM left */
   ._user_heap_stack (NOLOAD) :

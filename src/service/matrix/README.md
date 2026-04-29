@@ -120,16 +120,16 @@ static uint32_t xy_to_index(uint32_t row, uint32_t col)
 |--------|------|
 | `fb_a` | `MATRIX_MAX_LEDS * 4` 字节 |
 | `fb_b` | `MATRIX_MAX_LEDS * 4` 字节 |
-| `spi_temp` | `MATRIX_MAX_LEDS * (64 + 48)` 字节 |
+| `spi_temp` | `MATRIX_MAX_LEDS * (64 + 48)` 字节，位于 `.dma_buffer` |
 
-默认 256 LED 时，两个 framebuffer 共 2KB，`spi_temp` 约 28KB。`spi_temp` 包含 reset 低电平段和颜色编码段。
+默认 256 LED 时，两个 framebuffer 共 2KB，`spi_temp` 约 28KB。`spi_temp` 包含 reset 低电平段和颜色编码段，并通过 `.dma_buffer` 放在 D2 SRAM `0x30000000`。该区域由 MPU 配成 non-cacheable，避免 SPI DMA 读取到 DCache 中尚未写回的旧数据。
 
 ## 线程安全
 
 | 资源 | 保护方式 |
 |------|----------|
 | `back_buffer` / `front_buffer` 指针 | `matrix_mutex` |
-| `spi_temp` | 由 `driver_ws2812b` 在 `matrix_write_async()` 持有 `matrix_mutex` 时重编码 |
+| `spi_temp` | 由 `driver_ws2812b` 在 `matrix_write_async()` 持有 `matrix_mutex` 时重编码，放在 non-cacheable `.dma_buffer` |
 | SPI DMA busy 状态 | `driver_ws2812b` 通过底层 interface 等待/abort，DMA 完成中断在 interface 中释放状态 |
 
 不要从 ISR 调用 `matrix_*` API。这些 API 使用 FreeRTOS mutex 和可能的有限等待。

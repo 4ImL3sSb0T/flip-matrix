@@ -121,10 +121,10 @@ void StartDefaultTask(void *argument)
     .topology = MATRIX_TOPO_SNAKE
   };
 
-  matrix_init(&matrix_config);
-
-  FlipFluid* flip_handle = {0};
-  flip_handle = flip_create(1.0f, 1.0f, 16, 0.6f);
+  // matrix_init(&matrix_config);
+  //
+  // FlipFluid* flip_handle = {0};
+  // flip_handle = flip_create(1.0f, 1.0f, 16, 0.6f);
 
   /* Infinite loop */
   for(;;)

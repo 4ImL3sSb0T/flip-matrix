@@ -73,15 +73,16 @@ Compile-time configurable max LED count. Static allocation only.
 
 static uint32_t fb_a[MATRIX_MAX_LEDS];
 static uint32_t fb_b[MATRIX_MAX_LEDS];
-static uint8_t  spi_temp[MATRIX_MAX_LEDS * (64 + 48)];
+static uint8_t  spi_temp[MATRIX_MAX_LEDS * (64 + 48)]
+  __attribute__((section(".dma_buffer"), aligned(32), used));
 ```
 
-Each LED uses 48 bytes of color encoding. The current reset segment reserves 64 bytes per LED from `WS2812B_EACH_RESET_BIT_FRAME_LEN / 8`.
+Each LED uses 48 bytes of color encoding. The current reset segment reserves 64 bytes per LED from `WS2812B_EACH_RESET_BIT_FRAME_LEN / 8`. `spi_temp` is a SPI DMA source buffer, so it must stay in the MPU non-cacheable `.dma_buffer` region at D2 SRAM `0x30000000`.
 
 ## Thread Safety
 
 - `matrix_mutex` protects back/front pointer swaps and framebuffer writes.
-- `spi_temp` is rewritten by `driver_ws2812b` only from `matrix_write_async()` while holding `matrix_mutex`.
+- `spi_temp` is rewritten by `driver_ws2812b` only from `matrix_write_async()` while holding `matrix_mutex`, and is placed in non-cacheable `.dma_buffer`.
 - DMA busy state is exposed by `driver_ws2812b` and implemented by the interface layer.
 - Matrix APIs are task-context APIs and should not be called from ISR.
 

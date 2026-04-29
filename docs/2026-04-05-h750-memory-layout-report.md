@@ -40,7 +40,7 @@ Key sections from `build/Debug/H7RTOS.map`:
 | `.tbss` | `0x24000014` | `0x0` | TLS zero-init data, currently unused |
 | `.bss` | `0x24000014` | `0xe54` | Zero-init globals in AXI SRAM |
 | `.freertos_heap` | `0x24000e68` | `0x10000` | Dedicated FreeRTOS heap |
-| `.dma_buffer` | `0x30000000` | `0x0` | Reserved D2 DMA section, currently empty |
+| `.dma_buffer` | `0x30000000` | about `0x7000` for default matrix config | D2 DMA section, currently used by matrix SPI TX buffer |
 | `._user_heap_stack` | `0x20000000` | `0x600` | Reserved newlib heap + MSP stack block in DTCM |
 
 ## 3. Runtime Memory Structure
@@ -104,19 +104,19 @@ Note:
 
 ### 3.4 D2 SRAM (`RAM_D2`, `0x30000000`)
 
-`RAM_D2` currently contains the reserved `.dma_buffer` section:
+`RAM_D2` contains the reserved `.dma_buffer` section:
 
 ```text
-0x30000000  .dma_buffer  0x0
+0x30000000  .dma_buffer
 ```
 
-This is a placeholder section for future:
+This section is used for:
 - DMA RX/TX buffers
 - Ethernet descriptors
 - ADC/UART/SPI DMA working buffers
 - Other data that may need explicit cache policy handling
 
-At the moment, no symbols are assigned into this region.
+The matrix service places its SPI TX encoding buffer in this region with 32-byte alignment. The current MPU configuration covers the first 32KB at `0x30000000` as non-cacheable memory, and the linker asserts that `.dma_buffer` does not exceed that MPU-covered range.
 
 ### 3.5 D3 SRAM and ITCM
 
@@ -184,6 +184,7 @@ Recommended placement policy going forward:
 __attribute__((section(".dma_buffer"), aligned(32)))
 ```
 
+- Keep the MPU non-cacheable region size and the linker `.dma_buffer` size assertion in sync
 - Consider using `ITCMRAM` only for truly hot functions after measurement
 - Keep DTCM focused on stack, fast scratch data, or a few latency-sensitive objects
 
