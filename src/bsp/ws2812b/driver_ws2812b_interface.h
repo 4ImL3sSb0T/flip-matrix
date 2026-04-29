@@ -80,6 +80,36 @@ uint8_t ws2812b_interface_spi_deinit(void);
 uint8_t ws2812b_interface_spi_write_cmd(uint8_t *buf, uint16_t len);
 
 /**
+ * @brief     start an asynchronous spi dma write
+ * @param[in] *buf pointer to a data buffer
+ * @param[in] len length of data buffer
+ * @return    status code
+ *            - 0 success
+ *            - 1 write failed or dma busy
+ * @note      buffer must remain valid until dma complete
+ */
+uint8_t ws2812b_interface_spi_start_dma(uint8_t *buf, uint16_t len);
+
+/**
+ * @brief     wait for the asynchronous spi dma write to complete
+ * @param[in] timeout_ms maximum wait time in milliseconds
+ * @return    status code
+ *            - 0 completed or idle
+ *            - 1 timeout
+ * @note      none
+ */
+uint8_t ws2812b_interface_spi_wait_dma_done(uint32_t timeout_ms);
+
+/**
+ * @brief  abort the asynchronous spi dma write
+ * @return status code
+ *         - 0 success
+ *         - 1 abort failed
+ * @note   none
+ */
+uint8_t ws2812b_interface_spi_abort_dma(void);
+
+/**
  * @brief     interface delay ms
  * @param[in] ms time
  * @note      none

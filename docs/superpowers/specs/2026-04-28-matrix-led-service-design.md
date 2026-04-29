@@ -2,29 +2,36 @@
 
 ## Overview
 
-WS2812B LED matrix service on STM32H750VBTx. Provides a double-buffered framebuffer abstraction over the WS2812B SPI driver, exposing basic drawing primitives and batch write for high-throughput frame updates (target: FLIP fluid simulation output).
+WS2812B LED matrix service on STM32H750VBTx. The current design uses manual refresh: drawing APIs update a back framebuffer, and `matrix_write_async()` explicitly submits the frame through SPI DMA.
+
+The module intentionally does not own a periodic refresh task or timer.
 
 ## Architecture
 
 ```
-FLIP/User thread            FreeRTOS timer ISR
-      │                           │
-      │ matrix_write_pixels()     │ matrix_flush()
-      │ matrix_set_pixel()        │   swap(back, front)
-      │ matrix_fill()             │   ws2812b_encode(front, temp)
-      │ matrix_clear()            │   SPI_DMA_start(temp)
-      ▼                           ▼
-  ┌──────────────┐       ┌──────────────┐
-  │  back_buffer │  swap │ front_buffer │
-  │  (always RW) │◄─────►│ (owned by SPI│
-  └──────────────┘       │  DMA)        │
-                         └──────────────┘
-                                │
-                                ▼
-                         SPI → WS2812B strip
+FLIP/User task
+      │
+      │ matrix_write_buffer()
+      │ matrix_set_pixel()
+      │ matrix_fill()
+      │ matrix_clear()
+      ▼
+  ┌──────────────┐
+  │  back_buffer │
+  │  (pending)   │
+  └──────┬───────┘
+         │ matrix_write_async()
+         ▼
+  ┌──────────────┐
+  │ front_buffer │
+  │ (snapshot)   │
+  └──────┬───────┘
+         │ encode -> spi_temp
+         ▼
+  HAL_SPI_Transmit_DMA(spi_temp) -> WS2812B strip
 ```
 
-Double-buffer strategy: user thread writes back buffer freely, timer callback atomically swaps pointers then starts DMA on front buffer. No mutex needed — only the swap is a critical section (portENTER_CRITICAL).
+`matrix_write_async()` waits for the previous DMA transfer up to `MATRIX_DMA_WAIT_TIMEOUT_MS`, swaps front/back, encodes the front buffer, starts DMA, and returns without waiting for the new transfer to finish.
 
 ## API
 
@@ -43,11 +50,9 @@ typedef struct {
 exit_code_t matrix_init(const matrix_config_t *config);
 exit_code_t matrix_deinit(void);
 
-exit_code_t matrix_start(uint32_t refresh_rate_hz);
-exit_code_t matrix_stop(void);
-exit_code_t matrix_write_async(void);           // immediate flush (no timer wait)
+exit_code_t matrix_write_async(void);
 
-exit_code_t matrix_write_pixels(const uint32_t *data, uint32_t len);
+exit_code_t matrix_write_buffer(const uint32_t *data, uint32_t len);
 exit_code_t matrix_set_pixel(uint32_t row, uint32_t col, uint32_t rgb);
 exit_code_t matrix_fill(uint32_t rgb);
 exit_code_t matrix_clear(void);
@@ -57,68 +62,61 @@ uint32_t matrix_rows(void);
 uint32_t matrix_cols(void);
 ```
 
-`matrix_write_pixels` expects data in physical LED order. `matrix_set_pixel` takes logical (row, col) and applies topology mapping internally.
+`matrix_write_buffer()` expects data in logical row-major order. `matrix_write_buffer()` and `matrix_set_pixel()` apply topology mapping internally.
 
 ## Memory
 
-Compile-time configurable max LED count. Static allocation only — no heap.
+Compile-time configurable max LED count. Static allocation only.
 
 ```c
-#define MATRIX_MAX_LEDS 256  // default 16×16
+#define MATRIX_MAX_LEDS 256
 
-static uint32_t fb_a[MATRIX_MAX_LEDS];       //  1 KB
-static uint32_t fb_b[MATRIX_MAX_LEDS];       //  1 KB
-static uint8_t  spi_temp[MATRIX_MAX_LEDS * 64]; // 16 KB (for 256 LEDs)
+static uint32_t fb_a[MATRIX_MAX_LEDS];
+static uint32_t fb_b[MATRIX_MAX_LEDS];
+static uint8_t  spi_temp[MATRIX_MAX_LEDS * (64 + 48)];
 ```
 
-`spi_temp` sizing: each LED needs 48B SPI-encoded data; reset frame needs 64B per LED. Use `max(48, 64) * N = 64 * N`.
+Each LED uses 48 bytes of color encoding. The current reset segment reserves 64 bytes per LED from `WS2812B_EACH_RESET_BIT_FRAME_LEN / 8`.
 
 ## Thread Safety
 
-- Only one context writes back buffer (user thread)
-- Only one context reads front buffer (SPI DMA)
-- Swap is atomic (pointer reassignment within `portENTER_CRITICAL`)
-- DMA completion signaled via binary semaphore for deinit/stop cleanup
+- `matrix_mutex` protects back/front pointer swaps and framebuffer writes.
+- `spi_temp` is rewritten only from `matrix_write_async()` while holding `matrix_mutex`.
+- DMA busy state is owned by `driver_ws2812b_interface.c`.
+- Matrix APIs are task-context APIs and should not be called from ISR.
 
 ## Startup / Shutdown
 
 ```
 matrix_init:
-  validate rows×cols ≤ MATRIX_MAX_LEDS
-  validate WS2812B interface linked
-  zero both framebuffers
+  validate rows * cols <= MATRIX_MAX_LEDS
+  validate tx length fits uint16_t
+  zero framebuffers and spi_temp
+  create matrix_mutex
   ws2812b_init()
-  back = fb_a, front = fb_b
-
-matrix_start(hz):
-  create FreeRTOS software timer, period = 1000/hz ms
-
-matrix_stop:
-  delete timer
-  wait DMA done (semaphore)
 
 matrix_deinit:
-  stop if running
-  wait DMA done
+  wait current DMA up to MATRIX_DMA_WAIT_TIMEOUT_MS
+  abort on timeout
   ws2812b_deinit()
+  delete matrix_mutex
 ```
 
 ## Topology Mapping
 
 ```c
-static uint32_t xy_to_index(uint32_t row, uint32_t col) {
-  if (topology == MATRIX_TOPO_SNAKE && (row & 1)) {
-    col = cols - 1 - col;
+static uint32_t xy_to_index(uint32_t row, uint32_t col)
+{
+  if (matrix_cfg.topology == MATRIX_TOPO_SNAKE && (row & 1)) {
+    col = matrix_cfg.cols - 1 - col;
   }
-  return row * cols + col;
+  return row * matrix_cfg.cols + col;
 }
 ```
 
-Used by `matrix_set_pixel` only. `matrix_write_pixels` passes through directly.
-
 ## Dependencies
 
-- `driver_ws2812b.h` / `driver_ws2812b_interface.h` — low-level WS2812B SPI driver
-- `service/tools/common_def.h` — `exit_code_t`
-- FreeRTOS software timer + binary semaphore
-- `<string.h>` for memset/memcpy
+- `driver_ws2812b.h` / `driver_ws2812b_interface.h`
+- `service/tools/common_def.h`
+- FreeRTOS mutex and semaphore
+- `<string.h>`

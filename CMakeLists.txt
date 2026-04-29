@@ -54,8 +54,11 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 set(USER_SOURCES
+    src/bsp/ws2812b/driver_ws2812b.c
+    src/bsp/ws2812b/driver_ws2812b_interface.c
     src/service/imu/imu_service.c
     src/service/imu/MadgwickAHRS/MadgwickAHRS.c
+    src/service/matrix/matrix.c
     src/service/tools/common_def.c
     src/service/tools/vec_math.c
 )

@@ -1,8 +1,9 @@
 #ifndef _COMMON_DEF_H_
 #define _COMMON_DEF_H_
 
+#include <stdbool.h>
 #include <stddef.h>
-#include "stdint.h"
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
