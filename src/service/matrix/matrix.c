@@ -220,3 +220,35 @@ uint32_t matrix_cols(void)
 {
   return matrix_cfg.cols;
 }
+
+uint32_t matrix_rgb(uint8_t r, uint8_t g, uint8_t b)
+{
+  return ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+}
+
+uint32_t matrix_hsv2rgb(uint16_t h, uint8_t s, uint8_t v)
+{
+  if (s == 0) {
+    return ((uint32_t)v << 16) | ((uint32_t)v << 8) | v;
+  }
+
+  h %= 360;
+  uint8_t region = h / 60;
+  uint8_t rem = (uint8_t)(((uint32_t)(h % 60) * 255) / 60);
+
+  uint8_t p = (uint8_t)(((uint32_t)v * (255 - s)) >> 8);
+  uint8_t q = (uint8_t)(((uint32_t)v * (255 - (uint16_t)(((uint32_t)s * rem) >> 8))) >> 8);
+  uint8_t t = (uint8_t)(((uint32_t)v * (255 - (uint16_t)(((uint32_t)s * (255 - rem)) >> 8))) >> 8);
+
+  uint8_t r, g, b;
+  switch (region) {
+    case 0: r = v; g = t; b = p; break;
+    case 1: r = q; g = v; b = p; break;
+    case 2: r = p; g = v; b = t; break;
+    case 3: r = p; g = q; b = v; break;
+    case 4: r = t; g = p; b = v; break;
+    default: r = v; g = p; b = q; break;
+  }
+
+  return ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+}

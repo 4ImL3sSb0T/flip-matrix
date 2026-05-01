@@ -28,4 +28,7 @@ uint32_t matrix_pixel_count(void);
 uint32_t matrix_rows(void);
 uint32_t matrix_cols(void);
 
+uint32_t matrix_rgb(uint8_t r, uint8_t g, uint8_t b);
+uint32_t matrix_hsv2rgb(uint16_t h, uint8_t s, uint8_t v);
+
 #endif
