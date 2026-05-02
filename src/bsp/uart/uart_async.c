@@ -24,11 +24,15 @@ static StreamBufferHandle_t uart_rx_stream_buffer = NULL;
 static TaskHandle_t uart_async_tx_task_handle = NULL;
 static TaskHandle_t uart_async_rx_task_handle = NULL;
 
+static volatile uint16_t rx_last_pos = 0;
+
 void uart_async_tx_task(void *param) {
     while (1) {
         const size_t actual_len = xStreamBufferReceive(uart_tx_stream_buffer, uart_tx_dma_buffer, UART_ASYNC_TX_DMA_BUFFER_SIZE, portMAX_DELAY);
         const HAL_StatusTypeDef status = HAL_UART_Transmit_DMA(&huart1, uart_tx_dma_buffer, actual_len);
         if (status != HAL_OK) {
+            size_t sent = xStreamBufferSend(uart_tx_stream_buffer, uart_tx_dma_buffer, actual_len, portMAX_DELAY);
+            // if (sent != actual_len) {}
             vTaskDelay(pdMS_TO_TICKS(5));
             continue;
         }
@@ -88,6 +92,19 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
     if (huart->Instance == USART1) {
+        const uint16_t pos = Size;
+        const uint16_t last = rx_last_pos;
 
+        if (pos > last) {
+            // 没回绕: [last, pos)
+            xStreamBufferSendFromISR(uart_rx_stream_buffer, &uart_rx_dma_buffer[last], pos - last, NULL);
+        } else if (pos < last) {
+            // 回绕: [last, end) + [0, pos)
+            xStreamBufferSendFromISR(uart_rx_stream_buffer, &uart_rx_dma_buffer[last], UART_ASYNC_RX_DMA_BUFFER_SIZE - last, NULL);
+            xStreamBufferSendFromISR(uart_rx_stream_buffer, &uart_rx_dma_buffer[0], pos, NULL);
+        }
+        // pos == last: 无新数据，跳过
+
+        rx_last_pos = pos;
     }
 }
