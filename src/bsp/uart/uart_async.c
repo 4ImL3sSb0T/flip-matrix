@@ -22,17 +22,19 @@ static StreamBufferHandle_t uart_tx_stream_buffer = NULL;
 static StreamBufferHandle_t uart_rx_stream_buffer = NULL;
 
 static TaskHandle_t uart_async_tx_task_handle = NULL;
-static TaskHandle_t uart_async_rx_task_handle = NULL;
 
 static volatile uint16_t rx_last_pos = 0;
+static volatile uint32_t rx_errors = 0;
+static volatile uint32_t rx_dropped = 0;
+
+static volatile uint32_t tx_errors = 0;
 
 void uart_async_tx_task(void *param) {
     while (1) {
         const size_t actual_len = xStreamBufferReceive(uart_tx_stream_buffer, uart_tx_dma_buffer, UART_ASYNC_TX_DMA_BUFFER_SIZE, portMAX_DELAY);
         const HAL_StatusTypeDef status = HAL_UART_Transmit_DMA(&huart1, uart_tx_dma_buffer, actual_len);
         if (status != HAL_OK) {
-            size_t sent = xStreamBufferSend(uart_tx_stream_buffer, uart_tx_dma_buffer, actual_len, portMAX_DELAY);
-            // if (sent != actual_len) {}
+            tx_errors++;
             vTaskDelay(pdMS_TO_TICKS(5));
             continue;
         }
@@ -63,24 +65,24 @@ exit_code_t uart_async_deinit(void)
 
 exit_code_t uart_async_start() {
     if (uart_tx_stream_buffer == NULL || uart_rx_stream_buffer == NULL) return EXIT_FAIL;
-    const BaseType_t xTaskCreate_status = xTaskCreate(uart_async_tx_task, "uart_async_tx_task", configMINIMAL_STACK_SIZE, NULL, 1, &uart_async_tx_task_handle);
+    const BaseType_t xTaskCreate_status = xTaskCreate(uart_async_tx_task, "uart_async_tx_task", 256, NULL, 1, &uart_async_tx_task_handle);
 
     if (xTaskCreate_status != pdPASS) return EXIT_FAIL;
 
-    HAL_StatusTypeDef status = HAL_UARTEx_ReceiveToIdle_DMA(&huart1, uart_rx_dma_buffer, UART_ASYNC_RX_DMA_BUFFER_SIZE);
+    const HAL_StatusTypeDef status = HAL_UARTEx_ReceiveToIdle_DMA(&huart1, uart_rx_dma_buffer, UART_ASYNC_RX_DMA_BUFFER_SIZE);
     if (status != HAL_OK) return EXIT_FAIL;
     return EXIT_OK;
 }
 
-exit_code_t uart_async_write(const uint8_t* data, const uint32_t len) {
-    const size_t sent = xStreamBufferSend(uart_tx_stream_buffer, data, len, portMAX_DELAY);
+exit_code_t uart_async_write(const uint8_t* data, const uint32_t len, const TickType_t timeout) {
+    const size_t sent = xStreamBufferSend(uart_tx_stream_buffer, data, len, timeout);
     if (sent != len)
         return EXIT_FAIL;
     return EXIT_OK;
 }
 
-size_t uart_async_read(uint8_t* data, const uint32_t len) {
-    const size_t received = xStreamBufferReceive(uart_rx_stream_buffer, data, len, portMAX_DELAY);
+size_t uart_async_read(uint8_t* data, const uint32_t len, const TickType_t timeout) {
+    const size_t received = xStreamBufferReceive(uart_rx_stream_buffer, data, len, timeout);
     return received;
 }
 
@@ -96,15 +98,26 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
         const uint16_t last = rx_last_pos;
 
         if (pos > last) {
-            // 没回绕: [last, pos)
-            xStreamBufferSendFromISR(uart_rx_stream_buffer, &uart_rx_dma_buffer[last], pos - last, NULL);
+            const uint16_t len = pos - last;
+            const size_t sent = xStreamBufferSendFromISR(uart_rx_stream_buffer, &uart_rx_dma_buffer[last], len, NULL);
+            if (sent < len) rx_dropped += len - sent;
         } else if (pos < last) {
-            // 回绕: [last, end) + [0, pos)
-            xStreamBufferSendFromISR(uart_rx_stream_buffer, &uart_rx_dma_buffer[last], UART_ASYNC_RX_DMA_BUFFER_SIZE - last, NULL);
-            xStreamBufferSendFromISR(uart_rx_stream_buffer, &uart_rx_dma_buffer[0], pos, NULL);
+            const uint16_t len1 = UART_ASYNC_RX_DMA_BUFFER_SIZE - last;
+            const size_t sent1 = xStreamBufferSendFromISR(uart_rx_stream_buffer, &uart_rx_dma_buffer[last], len1, NULL);
+            if (sent1 < len1) rx_dropped += len1 - sent1;
+            const size_t sent2 = xStreamBufferSendFromISR(uart_rx_stream_buffer, &uart_rx_dma_buffer[0], pos, NULL);
+            if (sent2 < pos) rx_dropped += pos - sent2;
         }
-        // pos == last: 无新数据，跳过
 
         rx_last_pos = pos;
+    }
+}
+
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart) {
+    if (huart->Instance == USART1) {
+        rx_errors++;
+        HAL_UART_AbortReceive(huart);
+        rx_last_pos = 0;
+        HAL_UARTEx_ReceiveToIdle_DMA(huart, uart_rx_dma_buffer, UART_ASYNC_RX_DMA_BUFFER_SIZE);
     }
 }
