@@ -22,8 +22,8 @@ static uint32_t fb_b[MATRIX_MAX_LEDS];
 static uint32_t *front_buffer;
 static uint32_t *back_buffer;
 
-static uint8_t spi_temp[MATRIX_MAX_LEDS * MATRIX_TX_BYTES_PER_LED]
-  __attribute__((section(".dma_buffer"), aligned(32), used));
+static uint8_t spi_temp[MATRIX_MAX_LEDS * MATRIX_TX_BYTES_PER_LED];
+static uint8_t dma_buffer[MATRIX_MAX_LEDS * MATRIX_TX_BYTES_PER_LED] __attribute__((section(".dma_buffer"), aligned(32), used));
 
 static matrix_config_t matrix_cfg;
 static bool initialized;
@@ -66,7 +66,7 @@ static exit_code_t matrix_commit_locked(void)
   back_buffer = tmp;
 
   ret = ws2812b_write_async(&ws2812b_handle, front_buffer, led_count,
-                            spi_temp, tx_len, MATRIX_DMA_WAIT_TIMEOUT_MS);
+                            dma_buffer, tx_len, MATRIX_DMA_WAIT_TIMEOUT_MS);
   if (ret == 6) {
     tmp = front_buffer;
     front_buffer = back_buffer;
