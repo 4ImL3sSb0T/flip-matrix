@@ -6,7 +6,7 @@
 #include "task.h"
 
 #define SHELL_TASK_STACK_SIZE 256
-#define SHELL_TASK_PRIORITY   2
+#define SHELL_TASK_PRIORITY   20
 #define SHELL_READ_TIMEOUT_MS 100
 
 static Shell shell;

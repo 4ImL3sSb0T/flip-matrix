@@ -55,7 +55,7 @@ osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
   .stack_size = 512 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityLow,
 };
 
 /* Private function prototypes -----------------------------------------------*/
@@ -119,19 +119,19 @@ void StartDefaultTask(void *argument)
   /* USER CODE BEGIN StartDefaultTask */
   uart_async_init();
   uart_async_start();
-  // shell_port_init();
-  // shell_port_start();
+  shell_port_init();
+  shell_port_start();
 
-  // matrix_config_t matrix_config = {
-  //   .cols = 16,
-  //   .rows = 16,
-  //   .topology = MATRIX_TOPO_SNAKE
-  // };
-  //
-  // matrix_init(&matrix_config);
+  matrix_config_t matrix_config = {
+    .cols = 16,
+    .rows = 16,
+    .topology = MATRIX_TOPO_SNAKE
+  };
+
+  matrix_init(&matrix_config);
 
 
-  //
+
   // FlipFluid* flip_handle = {0};
   // flip_handle = flip_create(1.0f, 1.0f, 16, 0.6f);
   uint32_t h = 0, s = 200, v = 40;
@@ -139,8 +139,8 @@ void StartDefaultTask(void *argument)
   for(;;)
   {
     h += 20;
-    // matrix_fill(matrix_hsv2rgb(h % 360, s, v));
-    // matrix_write_async();
+    matrix_fill(matrix_hsv2rgb(h % 360, s, v));
+    matrix_write_async();
     HAL_GPIO_TogglePin(BLUE_GPIO_Port, BLUE_Pin);
     osDelay(200);
   }

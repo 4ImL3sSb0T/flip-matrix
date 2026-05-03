@@ -65,7 +65,7 @@ exit_code_t uart_async_deinit(void)
 
 exit_code_t uart_async_start() {
     if (uart_tx_stream_buffer == NULL || uart_rx_stream_buffer == NULL) return EXIT_FAIL;
-    const BaseType_t xTaskCreate_status = xTaskCreate(uart_async_tx_task, "uart_async_tx_task", 256, NULL, 1, &uart_async_tx_task_handle);
+    const BaseType_t xTaskCreate_status = xTaskCreate(uart_async_tx_task, "uart_async_tx_task", 256, NULL, 24, &uart_async_tx_task_handle);
 
     if (xTaskCreate_status != pdPASS) return EXIT_FAIL;
 
