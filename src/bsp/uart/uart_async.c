@@ -91,7 +91,9 @@ size_t uart_async_read(uint8_t* data, const uint32_t len, const TickType_t timeo
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
     if (huart->Instance == USART1) {
-        xTaskNotifyFromISR(uart_async_tx_task_handle, 0, eNoAction, NULL);
+        BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+        xTaskNotifyFromISR(uart_async_tx_task_handle, 0, eNoAction, &xHigherPriorityTaskWoken);
+        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
     }
 }
 
@@ -99,20 +101,26 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
     if (huart->Instance == USART1) {
         const uint16_t pos = Size;
         const uint16_t last = rx_last_pos;
+        BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
         if (pos > last) {
             const uint16_t len = pos - last;
-            const size_t sent = xStreamBufferSendFromISR(uart_rx_stream_buffer, &uart_rx_dma_buffer[last], len, NULL);
+            const size_t sent = xStreamBufferSendFromISR(uart_rx_stream_buffer, &uart_rx_dma_buffer[last], len, &xHigherPriorityTaskWoken);
             if (sent < len) rx_dropped += len - sent;
         } else if (pos < last) {
             const uint16_t len1 = UART_ASYNC_RX_DMA_BUFFER_SIZE - last;
-            const size_t sent1 = xStreamBufferSendFromISR(uart_rx_stream_buffer, &uart_rx_dma_buffer[last], len1, NULL);
-            if (sent1 < len1) rx_dropped += len1 - sent1;
-            const size_t sent2 = xStreamBufferSendFromISR(uart_rx_stream_buffer, &uart_rx_dma_buffer[0], pos, NULL);
-            if (sent2 < pos) rx_dropped += pos - sent2;
+            if (len1 > 0) {
+                const size_t sent1 = xStreamBufferSendFromISR(uart_rx_stream_buffer, &uart_rx_dma_buffer[last], len1, &xHigherPriorityTaskWoken);
+                if (sent1 < len1) rx_dropped += len1 - sent1;
+            }
+            if (pos > 0) {
+                const size_t sent2 = xStreamBufferSendFromISR(uart_rx_stream_buffer, &uart_rx_dma_buffer[0], pos, &xHigherPriorityTaskWoken);
+                if (sent2 < pos) rx_dropped += pos - sent2;
+            }
         }
 
         rx_last_pos = pos;
+        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
     }
 }
 
