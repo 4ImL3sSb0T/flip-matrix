@@ -19,13 +19,13 @@ static signed short shell_read(char *data, unsigned short len) {
 }
 
 static signed short shell_write(char *data, unsigned short len) {
-    if (uart_async_write((const uint8_t *)data, len, portMAX_DELAY) == EXIT_OK)
+    if (uart_async_write((const uint8_t *)data, len, pdMS_TO_TICKS(100)) == EXIT_OK)
         return (signed short)len;
     return 0;
 }
 
 static void log_write(char *data, short len) {
-    uart_async_write((const uint8_t *)data, (uint32_t)len, portMAX_DELAY);
+    uart_async_write((const uint8_t *)data, (uint32_t)len, pdMS_TO_TICKS(50));
 }
 
 static void shell_task(void *param) {

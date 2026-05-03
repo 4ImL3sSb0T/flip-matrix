@@ -32,13 +32,15 @@ static volatile uint32_t tx_errors = 0;
 void uart_async_tx_task(void *param) {
     while (1) {
         const size_t actual_len = xStreamBufferReceive(uart_tx_stream_buffer, uart_tx_dma_buffer, UART_ASYNC_TX_DMA_BUFFER_SIZE, portMAX_DELAY);
-        const HAL_StatusTypeDef status = HAL_UART_Transmit_DMA(&huart1, uart_tx_dma_buffer, actual_len);
-        if (status != HAL_OK) {
+        uint8_t retries = 3;
+        while (retries--) {
+            if (HAL_UART_Transmit_DMA(&huart1, uart_tx_dma_buffer, actual_len) == HAL_OK) {
+                ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+                break;
+            }
             tx_errors++;
             vTaskDelay(pdMS_TO_TICKS(5));
-            continue;
         }
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     }
 }
 
