@@ -122,8 +122,8 @@ void StartDefaultTask(void *argument)
   /* USER CODE BEGIN StartDefaultTask */
   uart_async_init();
   uart_async_start();
-  // shell_port_init();
-  // shell_port_start();
+  shell_port_init();
+  shell_port_start();
 
   // matrix_config_t matrix_config = {
   //   .cols = 16,
@@ -146,9 +146,9 @@ void StartDefaultTask(void *argument)
     // matrix_fill(matrix_hsv2rgb(h % 360, s, v));
     // matrix_write_async();
     HAL_GPIO_TogglePin(BLUE_GPIO_Port, BLUE_Pin);
-    memset(test_buffer, 0, 256);
-    size_t len = uart_async_read(test_buffer, sizeof(test_buffer)/sizeof(test_buffer[0]), 5);
-    uart_async_write(test_buffer, len, 5);
+    // memset(test_buffer, 0, 256);
+    // size_t len = uart_async_read(test_buffer, sizeof(test_buffer)/sizeof(test_buffer[0]), 5);
+    // uart_async_write(test_buffer, len, 5);
     osDelay(200);
   }
   /* USER CODE END StartDefaultTask */
