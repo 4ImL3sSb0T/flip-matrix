@@ -8,8 +8,8 @@
 #define UART_ASYNC_TX_STREAM_BUFFER_SIZE 256
 #define UART_ASYNC_RX_STREAM_BUFFER_SIZE 256
 
-#define UART_ASYNC_TX_DMA_BUFFER_SIZE 256
-#define UART_ASYNC_RX_DMA_BUFFER_SIZE 256
+#define UART_ASYNC_TX_DMA_BUFFER_SIZE 512
+#define UART_ASYNC_RX_DMA_BUFFER_SIZE 512
 
 #define UART_ASYNC_TX_STREAM_BUFFER_ITEM_SIZE sizeof(uint8_t)
 #define UART_ASYNC_RX_STREAM_BUFFER_ITEM_SIZE sizeof(uint8_t)
@@ -77,6 +77,7 @@ exit_code_t uart_async_start() {
 }
 
 exit_code_t uart_async_write(const uint8_t* data, const uint32_t len, const TickType_t timeout) {
+    if (len == 0) return EXIT_OK;
     const size_t sent = xStreamBufferSend(uart_tx_stream_buffer, data, len, timeout);
     if (sent != len)
         return EXIT_FAIL;

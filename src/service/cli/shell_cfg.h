@@ -93,7 +93,7 @@
  * @brief 使用CR作为命令行回车触发
  *        可以和SHELL_ENTER_LF同时开启
  */
-#define     SHELL_ENTER_CR              1
+#define     SHELL_ENTER_CR              0
 #endif /** SHELL_ENTER_CR */
 
 #ifndef SHELL_ENTER_CRLF
@@ -101,7 +101,7 @@
  * @brief 使用CRLF作为命令行回车触发
  *        不可以和SHELL_ENTER_LF或SHELL_ENTER_CR同时开启
  */
-#define     SHELL_ENTER_CRLF            0
+#define     SHELL_ENTER_CRLF            1
 #endif /** SHELL_ENTER_CRLF */
 
 #ifndef SHELL_EXEC_UNDEF_FUNC
@@ -191,7 +191,7 @@
  * @brief 使用锁
  * @note 使用shell锁时，需要对加锁和解锁进行实现
  */
-#define     SHELL_USING_LOCK            0
+#define     SHELL_USING_LOCK            1
 #endif /** SHELL_USING_LOCK */
 
 #ifndef SHELL_MALLOC
