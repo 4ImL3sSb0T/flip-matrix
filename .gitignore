@@ -86,3 +86,7 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
+build/
+compile_commands.json
+.cache/
+

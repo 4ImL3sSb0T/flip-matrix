@@ -27,6 +27,8 @@
 /* USER CODE BEGIN Includes */
 #include "service/matrix/matrix.h"
 #include "service/flip/flip_core.h"
+#include "bsp/uart/uart_async.h"
+#include "service/cli/port/shell_port.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -52,7 +54,7 @@
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
-  .stack_size = 128 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 
@@ -115,13 +117,18 @@ void MX_FREERTOS_Init(void) {
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN StartDefaultTask */
-  matrix_config_t matrix_config = {
-    .cols = 16,
-    .rows = 16,
-    .topology = MATRIX_TOPO_SNAKE
-  };
+  uart_async_init();
+  uart_async_start();
+  // shell_port_init();
+  // shell_port_start();
 
-  matrix_init(&matrix_config);
+  // matrix_config_t matrix_config = {
+  //   .cols = 16,
+  //   .rows = 16,
+  //   .topology = MATRIX_TOPO_SNAKE
+  // };
+  //
+  // matrix_init(&matrix_config);
 
 
   //
@@ -132,8 +139,8 @@ void StartDefaultTask(void *argument)
   for(;;)
   {
     h += 20;
-    matrix_fill(matrix_hsv2rgb(h % 360, s, v));
-    matrix_write_async();
+    // matrix_fill(matrix_hsv2rgb(h % 360, s, v));
+    // matrix_write_async();
     HAL_GPIO_TogglePin(BLUE_GPIO_Port, BLUE_Pin);
     osDelay(200);
   }
@@ -142,6 +149,13 @@ void StartDefaultTask(void *argument)
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
+{
+  (void)xTask;
+  (void)pcTaskName;
+  for (;;) { __asm volatile("nop"); }
+}
+
 /* FreeRTOS Trace 空桩函数定义 */
 #if ( configUSE_TRACE_FACILITY == 1 )
 

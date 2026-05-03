@@ -22,12 +22,21 @@
 #include "stm32h7xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "core_cm7.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN TD */
 
 /* USER CODE END TD */
+
+/* Private variables ---------------------------------------------------------*/
+/* USER CODE BEGIN PV */
+volatile uint32_t fault_r0, fault_r1, fault_r2, fault_r3;
+volatile uint32_t fault_r12, fault_lr, fault_pc, fault_xpsr;
+volatile uint32_t fault_cfsr, fault_hfsr, fault_mmfar, fault_bfar;
+volatile uint32_t fault_sp;
+/* USER CODE END PV */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
@@ -90,7 +99,13 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
-
+  __asm volatile (
+    "TST LR, #4        \n"
+    "ITE EQ            \n"
+    "MRSEQ R0, MSP     \n"
+    "MRSNE R0, PSP     \n"
+    "B hard_fault_capture \n"
+  );
   /* USER CODE END HardFault_IRQn 0 */
   while (1)
   {
@@ -99,13 +114,39 @@ void HardFault_Handler(void)
   }
 }
 
+void hard_fault_capture(uint32_t *sp)
+{
+  fault_sp    = (uint32_t)sp;
+  fault_r0    = sp[0];
+  fault_r1    = sp[1];
+  fault_r2    = sp[2];
+  fault_r3    = sp[3];
+  fault_r12   = sp[4];
+  fault_lr    = sp[5];
+  fault_pc    = sp[6];
+  fault_xpsr  = sp[7];
+
+  fault_cfsr  = SCB->CFSR;
+  fault_hfsr  = SCB->HFSR;
+  fault_mmfar = SCB->MMFAR;
+  fault_bfar  = SCB->BFAR;
+
+  while (1);
+}
+
 /**
   * @brief This function handles Memory management fault.
   */
 void MemManage_Handler(void)
 {
   /* USER CODE BEGIN MemoryManagement_IRQn 0 */
-
+  __asm volatile (
+    "TST LR, #4        \n"
+    "ITE EQ            \n"
+    "MRSEQ R0, MSP     \n"
+    "MRSNE R0, PSP     \n"
+    "B hard_fault_capture \n"
+  );
   /* USER CODE END MemoryManagement_IRQn 0 */
   while (1)
   {
@@ -120,7 +161,13 @@ void MemManage_Handler(void)
 void BusFault_Handler(void)
 {
   /* USER CODE BEGIN BusFault_IRQn 0 */
-
+  __asm volatile (
+    "TST LR, #4        \n"
+    "ITE EQ            \n"
+    "MRSEQ R0, MSP     \n"
+    "MRSNE R0, PSP     \n"
+    "B hard_fault_capture \n"
+  );
   /* USER CODE END BusFault_IRQn 0 */
   while (1)
   {

@@ -54,6 +54,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 set(USER_SOURCES
+    src/bsp/uart/uart_async.c
     src/bsp/ws2812b/driver_ws2812b.c
     src/bsp/ws2812b/driver_ws2812b_interface.c
     src/service/cli/shell_companion.c
@@ -64,6 +65,7 @@ set(USER_SOURCES
     src/service/imu/imu_service.c
     src/service/imu/MadgwickAHRS/MadgwickAHRS.c
     src/service/matrix/matrix.c
+    src/service/matrix/matrix_cmd.c
     src/service/tools/common_def.c
     src/service/tools/vec_math.c
 )
@@ -81,7 +83,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user defined symbols
+    configCHECK_FOR_STACK_OVERFLOW=2
 )
 
 # Remove wrong libob.a library dependency when using cpp files

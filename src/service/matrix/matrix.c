@@ -1,4 +1,5 @@
 #include "matrix.h"
+#include "service/cli/log/log.h"
 #include "bsp/ws2812b/driver_ws2812b.h"
 #include "bsp/ws2812b/driver_ws2812b_interface.h"
 #include "FreeRTOS.h"
@@ -89,7 +90,10 @@ exit_code_t matrix_init(const matrix_config_t *config)
   if (config->rows == 0 || config->cols == 0) return EXIT_INVALID_PARAM;
 
   uint32_t led_count = config->rows * config->cols;
-  if (led_count > MATRIX_MAX_LEDS) return EXIT_NO_RESOURCE;
+  if (led_count > MATRIX_MAX_LEDS) {
+    logError("too many LEDs: %lu (max %d)", led_count, MATRIX_MAX_LEDS);
+    return EXIT_NO_RESOURCE;
+  }
   if (matrix_tx_len(led_count) > UINT16_MAX) return EXIT_NO_RESOURCE;
 
   matrix_cfg = *config;
@@ -117,10 +121,13 @@ exit_code_t matrix_init(const matrix_config_t *config)
   if (ws2812b_init(&ws2812b_handle) != 0) {
     vSemaphoreDelete(matrix_mutex);
     matrix_mutex = NULL;
+    logError("ws2812b init failed");
     return EXIT_HW_FAILURE;
   }
 
   initialized = true;
+  logInfo("matrix %lux%lu topo=%u, %lu LEDs",
+          config->rows, config->cols, config->topology, led_count);
   return EXIT_OK;
 }
 
@@ -139,6 +146,7 @@ exit_code_t matrix_deinit(void)
   }
 
   initialized = false;
+  logInfo("matrix deinitialized");
   return EXIT_OK;
 }
 
@@ -152,6 +160,9 @@ exit_code_t matrix_write_async(void)
   ret = matrix_commit_locked();
   xSemaphoreGive(matrix_mutex);
 
+  if (ret != EXIT_OK) {
+    logError("write_async failed: %d", ret);
+  }
   return ret;
 }
 
@@ -161,7 +172,10 @@ exit_code_t matrix_write_buffer(const uint32_t *data, uint32_t len)
   if (!data) return EXIT_INVALID_PARAM;
 
   uint32_t led_count = matrix_led_count();
-  if (len != led_count) return EXIT_INVALID_PARAM;
+  if (len != led_count) {
+    logError("write_buffer len %lu != %lu", len, led_count);
+    return EXIT_INVALID_PARAM;
+  }
 
   xSemaphoreTake(matrix_mutex, portMAX_DELAY);
   for (uint32_t row = 0; row < matrix_cfg.rows; row++) {
@@ -179,7 +193,10 @@ exit_code_t matrix_write_buffer(const uint32_t *data, uint32_t len)
 exit_code_t matrix_set_pixel(uint32_t row, uint32_t col, uint32_t rgb)
 {
   if (!initialized) return EXIT_NOT_INITIALIZED;
-  if (row >= matrix_cfg.rows || col >= matrix_cfg.cols) return EXIT_INVALID_PARAM;
+  if (row >= matrix_cfg.rows || col >= matrix_cfg.cols) {
+    logError("set_pixel out of bounds: (%lu,%lu)", row, col);
+    return EXIT_INVALID_PARAM;
+  }
 
   xSemaphoreTake(matrix_mutex, portMAX_DELAY);
   back_buffer[xy_to_index(row, col)] = rgb;

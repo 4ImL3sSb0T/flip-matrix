@@ -81,7 +81,7 @@
     #elif defined (__IAR_SYSTEMS_ICC__)
         #define SHELL_SECTION(x)                @ x
     #elif defined(__GNUC__)
-        #define SHELL_SECTION(x)                __attribute__((section(x), aligned(1)))
+        #define SHELL_SECTION(x)                __attribute__((section("." x), aligned(1)))
     #else
         #define SHELL_SECTION(x)
     #endif
