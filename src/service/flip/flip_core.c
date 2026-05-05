@@ -11,6 +11,9 @@ Modifications/port to C:
 */
 #include "flip_core.h"
 
+#include "FreeRTOS.h"
+#include "task.h"
+
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -492,8 +495,7 @@ void flip_set_solver_quality(FlipFluid* f, int push_iters,
 
 static int alloc_floats(float** p, int count) {
     size_t bytes = (size_t)count * sizeof(float);
-    *p = (float*)heap_caps_aligned_alloc(
-        16, bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    *p = (float*)pvPortMalloc(bytes);
     if (*p) {
         memset(*p, 0, bytes);
         return 1;
@@ -501,8 +503,13 @@ static int alloc_floats(float** p, int count) {
     return 0;
 }
 static int alloc_i32(int32_t** p, int count) {
-    *p = (int32_t*)calloc((size_t)count, sizeof(int32_t));
-    return (*p != NULL);
+    size_t bytes = (size_t)count * sizeof(int32_t);
+    *p = (int32_t*)pvPortMalloc(bytes);
+    if (*p) {
+        memset(*p, 0, bytes);
+        return 1;
+    }
+    return 0;
 }
 
 FlipFluid* flip_create(float sim_w, float sim_h, int visible_res,
@@ -526,9 +533,10 @@ FlipFluid* flip_create(float sim_w, float sim_h, int visible_res,
     int base_particles = MAX(num_x * num_y, 1);
     int max_particles = MAX(base_particles + 256, base_particles * 2);
 
-    FlipFluid* f = (FlipFluid*)calloc(1, sizeof(FlipFluid));
+    FlipFluid* f = (FlipFluid*)pvPortMalloc(sizeof(FlipFluid));
     if (!f)
         return NULL;
+    memset(f, 0, sizeof(FlipFluid));
 
     f->density = density;
     f->f_num_x = (int)floorf(tank_w / h) + 1;
@@ -608,22 +616,22 @@ FlipFluid* flip_create(float sim_w, float sim_h, int visible_res,
 void flip_destroy(FlipFluid* f) {
     if (!f)
         return;
-    free(f->u);
-    free(f->v);
-    free(f->du);
-    free(f->dv);
-    free(f->prev_u);
-    free(f->prev_v);
-    free(f->p);
-    free(f->s);
-    free(f->cell_type);
-    free(f->particle_pos);
-    free(f->particle_vel);
-    free(f->particle_density);
-    free(f->num_cell_particles);
-    free(f->first_cell_particle);
-    free(f->cell_particle_ids);
-    free(f);
+    vPortFree(f->u);
+    vPortFree(f->v);
+    vPortFree(f->du);
+    vPortFree(f->dv);
+    vPortFree(f->prev_u);
+    vPortFree(f->prev_v);
+    vPortFree(f->p);
+    vPortFree(f->s);
+    vPortFree(f->cell_type);
+    vPortFree(f->particle_pos);
+    vPortFree(f->particle_vel);
+    vPortFree(f->particle_density);
+    vPortFree(f->num_cell_particles);
+    vPortFree(f->first_cell_particle);
+    vPortFree(f->cell_particle_ids);
+    vPortFree(f);
 }
 
 void flip_step(FlipFluid* f, float dt, float gx, float gy) {
@@ -680,4 +688,41 @@ void flip_get_led_grid(const FlipFluid* f, float* out_grid) {
     int visible_x = f->f_num_x - 2;
     int visible_y = f->f_num_y - 2;
     get_led_grid(f, out_grid, visible_x, visible_y);
+}
+
+typedef struct {
+    FlipFluid *f;
+    float dt;
+} flip_task_ctx_t;
+
+#define FLIP_TASK_STACK_SIZE 1024
+#define FLIP_TASK_PRIORITY   10
+
+static void flip_task(void *param) {
+    flip_task_ctx_t *ctx = (flip_task_ctx_t *)param;
+    FlipFluid *f = ctx->f;
+    const float dt = ctx->dt;
+    vPortFree(ctx);
+    flip_set_solver_quality(f, 4, 12, 0.9f);
+    for (;;) {
+        flip_step(f, dt, 0.0f, -1.0f);
+    }
+}
+
+exit_code_t flip_task_start(FlipFluid *f, float dt_s) {
+    if (!f) return EXIT_INVALID_PARAM;
+
+    flip_task_ctx_t *ctx = pvPortMalloc(sizeof(flip_task_ctx_t));
+    if (!ctx) return EXIT_NO_MEMORY;
+    ctx->f = f;
+    ctx->dt = dt_s;
+
+    TaskHandle_t handle = NULL;
+    const BaseType_t ret = xTaskCreate(flip_task, "flip", FLIP_TASK_STACK_SIZE,
+                                       ctx, FLIP_TASK_PRIORITY, &handle);
+    if (ret != pdPASS) {
+        vPortFree(ctx);
+        return EXIT_FAIL;
+    }
+    return EXIT_OK;
 }

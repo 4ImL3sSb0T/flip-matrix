@@ -71,6 +71,7 @@ set(USER_SOURCES
     src/service/tools/common_def.c
     src/service/tools/vec_math.c
     src/service/cli/cpu_cmd.c
+    src/service/flip/flip_core.c
 )
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE

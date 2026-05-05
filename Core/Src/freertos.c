@@ -135,8 +135,11 @@ void StartDefaultTask(void *argument)
 
 
 
-  // FlipFluid* flip_handle = {0};
-  // flip_handle = flip_create(1.0f, 1.0f, 16, 0.6f);
+  FlipFluid* flip_handle;
+  flip_handle = flip_create(1.0f, 1.0f, 16, 0.6f);
+
+  flip_task_start(flip_handle, 0.1f);
+
   uint32_t h = 0, s = 200, v = 40;
   static uint8_t test_buffer[256];
   /* Infinite loop */
