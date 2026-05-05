@@ -12,6 +12,10 @@
 #include <stdint.h>
 #include "service/tools/common_def.h"
 
+#include "FreeRTOS.h"
+#include "task.h"
+#include "semphr.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -180,7 +184,7 @@ void flip_set_solver_quality(FlipFluid *f, int push_iters,
  */
 void flip_get_led_grid(const FlipFluid *f, float *out_grid);
 
-exit_code_t flip_task_start(FlipFluid *f, float dt_s);
+TaskHandle_t flip_task_start(FlipFluid *f, float dt_s);
 
 #ifdef __cplusplus
 }

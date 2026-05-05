@@ -11,8 +11,6 @@ Modifications/port to C:
 */
 #include "flip_core.h"
 
-#include "FreeRTOS.h"
-#include "task.h"
 #include "arm_math.h"
 
 #include <math.h>
@@ -21,11 +19,16 @@ Modifications/port to C:
 #include <stdlib.h>
 #include <string.h>
 
+TaskHandle_t flip_task_handle;
+SemaphoreHandle_t flip_res_semphr;
+
 // gamma LUT
 static bool s_gamma_inited = false;
 static uint8_t s_gamma_lut[256];
 
+// 防止竞态条件
 static void gamma_init_once(void) {
+    taskENTER_CRITICAL();
     if (s_gamma_inited)
         return;
     for (int i = 0; i < 256; i++) {
@@ -33,6 +36,7 @@ static void gamma_init_once(void) {
         s_gamma_lut[i] = (uint8_t)lrintf(powf(x, GAMMA_F) * 255.0f);
     }
     s_gamma_inited = true;
+    taskEXIT_CRITICAL();
 }
 
 void flip_destroy(FlipFluid* f);
@@ -609,25 +613,27 @@ FlipFluid* flip_create(float sim_w, float sim_h, int visible_res,
 }
 
 void flip_destroy(FlipFluid* f) {
-    if (!f)
-        return;
-    vPortFree(f->u);
-    vPortFree(f->v);
-    vPortFree(f->du);
-    vPortFree(f->dv);
-    vPortFree(f->prev_u);
-    vPortFree(f->prev_v);
-    vPortFree(f->p);
-    vPortFree(f->s);
-    vPortFree(f->cell_type);
-    vPortFree(f->pos_x);
-    vPortFree(f->pos_y);
-    vPortFree(f->vel_x);
-    vPortFree(f->vel_y);
-    vPortFree(f->particle_density);
-    vPortFree(f->num_cell_particles);
-    vPortFree(f->first_cell_particle);
-    vPortFree(f->cell_particle_ids);
+    if (!f) return;
+    if (flip_task_handle) vTaskDelete(flip_task_handle);
+    flip_task_handle = NULL;
+
+    if (f->u) vPortFree(f->u);
+    if (f->v) vPortFree(f->v);
+    if (f->du) vPortFree(f->du);
+    if (f->dv) vPortFree(f->dv);
+    if (f->prev_u) vPortFree(f->prev_u);
+    if (f->prev_v) vPortFree(f->prev_v);
+    if (f->p) vPortFree(f->p);
+    if (f->s) vPortFree(f->s);
+    if (f->cell_type) vPortFree(f->cell_type);
+    if (f->pos_x) vPortFree(f->pos_x);
+    if (f->pos_y) vPortFree(f->pos_y);
+    if (f->vel_x) vPortFree(f->vel_x);
+    if (f->vel_y) vPortFree(f->vel_y);
+    if (f->particle_density) vPortFree(f->particle_density);
+    if (f->num_cell_particles) vPortFree(f->num_cell_particles);
+    if (f->first_cell_particle) vPortFree(f->first_cell_particle);
+    if (f->cell_particle_ids) vPortFree(f->cell_particle_ids);
     vPortFree(f);
 }
 
@@ -710,24 +716,26 @@ static void flip_task(void *param) {
 
     for (;;) {
         flip_step(f, dt, 0.0f, -1.0f);
-        vTaskDelayUntil(&xLastWakeTime, ms);
+        vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(ms));
     }
+    vTaskDelete(NULL);
 }
 
-exit_code_t flip_task_start(FlipFluid *f, float dt_s) {
-    if (!f) return EXIT_INVALID_PARAM;
+TaskHandle_t flip_task_start(FlipFluid *f, float dt_s) {
+    if (!f) return NULL;
 
     flip_task_ctx_t *ctx = pvPortMalloc(sizeof(flip_task_ctx_t));
-    if (!ctx) return EXIT_NO_MEMORY;
+    if (!ctx) return NULL;
     ctx->f = f;
     ctx->dt = dt_s;
 
-    TaskHandle_t handle = NULL;
+    flip_res_semphr = xSemaphoreCreateBinary();
+
     const BaseType_t ret = xTaskCreate(flip_task, "flip", FLIP_TASK_STACK_SIZE,
-                                       ctx, FLIP_TASK_PRIORITY, &handle);
+                                       ctx, FLIP_TASK_PRIORITY, &flip_task_handle);
     if (ret != pdPASS) {
         vPortFree(ctx);
-        return EXIT_FAIL;
+        return NULL;
     }
-    return EXIT_OK;
+    return flip_task_handle;
 }
