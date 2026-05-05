@@ -701,9 +701,16 @@ static void flip_task(void *param) {
     FlipFluid *f = ctx->f;
     const float dt = ctx->dt;
     vPortFree(ctx);
-    flip_set_solver_quality(f, 4, 12, 0.9f);
+    const uint32_t ms = (uint32_t)(dt * 1000);
+
+    flip_set_solver_quality(f, 4, 12, 0.6f);
+    flip_set_gravity_scale(f, 9.81f);
+
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+
     for (;;) {
         flip_step(f, dt, 0.0f, -1.0f);
+        vTaskDelayUntil(&xLastWakeTime, ms);
     }
 }
 
