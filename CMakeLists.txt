@@ -40,7 +40,9 @@ add_subdirectory(cmake/stm32cubemx)
 # Keep FreeRTOS heap ownership outside CubeMX-generated headers.
 target_compile_definitions(stm32cubemx INTERFACE
     configAPPLICATION_ALLOCATED_HEAP=1
-        ARM_MATH_CM7
+    configGENERATE_RUN_TIME_STATS=1
+    configUSE_STATS_FORMATTING_FUNCTIONS=2
+    ARM_MATH_CM7
 )
 
 # Add project-specific include paths that should survive CubeMX regeneration.
@@ -68,6 +70,7 @@ set(USER_SOURCES
     src/service/matrix/matrix_cmd.c
     src/service/tools/common_def.c
     src/service/tools/vec_math.c
+    src/service/cli/cpu_cmd.c
 )
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE

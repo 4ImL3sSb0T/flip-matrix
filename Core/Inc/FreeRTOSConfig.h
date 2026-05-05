@@ -165,6 +165,12 @@ standard names. */
 
 /* USER CODE BEGIN Defines */
 /* Section where parameter definitions can be added (for instance, to override default ones in FreeRTOS.h) */
+#include "stm32h7xx.h"
+#define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS() \
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk; \
+    DWT->CYCCNT = 0; \
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk
+#define portGET_RUN_TIME_COUNTER_VALUE()    DWT->CYCCNT
 /* USER CODE END Defines */
 
 #endif /* FREERTOS_CONFIG_H */

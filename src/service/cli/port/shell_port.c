@@ -11,7 +11,7 @@
 #define SHELL_READ_TIMEOUT_MS 100
 
 static Shell shell;
-static Log log;
+static Log log_obj;
 static char shell_buffer[512];
 static SemaphoreHandle_t shell_mutex;
 
@@ -56,10 +56,10 @@ exit_code_t shell_port_init(void) {
     shell.unlock = shell_unlock;
     shellInit(&shell, shell_buffer, sizeof(shell_buffer));
 
-    log.write = log_write;
-    log.active = 1;
-    log.level = LOG_ALL;
-    logRegister(&log, &shell);
+    log_obj.write = log_write;
+    log_obj.active = 1;
+    log_obj.level = LOG_ALL;
+    logRegister(&log_obj, &shell);
 
     return EXIT_OK;
 }
