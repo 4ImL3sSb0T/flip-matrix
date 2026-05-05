@@ -52,7 +52,7 @@ target_include_directories(stm32cubemx INTERFACE
 
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user defined library search paths
+    ${CMAKE_SOURCE_DIR}/Drivers/CMSIS/DSP/Lib/GCC
 )
 
 set(USER_SOURCES
@@ -96,6 +96,5 @@ list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
-
-    # Add user defined libraries
+    arm_cortexM7lfsp_math
 )

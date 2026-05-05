@@ -13,6 +13,7 @@ Modifications/port to C:
 
 #include "FreeRTOS.h"
 #include "task.h"
+#include "arm_math.h"
 
 #include <math.h>
 #include <stdbool.h>
@@ -36,19 +37,25 @@ static void gamma_init_once(void) {
 
 void flip_destroy(FlipFluid* f);
 
-static void integrate_particles(int n, float* pos, float* vel, float dt,
+static void integrate_particles(int n, float* pos_x, float* pos_y,
+                                float* vel_x, float* vel_y, float dt,
                                 float gx, float gy) {
     const float dgx = gx * dt;
     const float dgy = gy * dt;
-    for (int i = 0; i < n; i++) {
-        vel[2 * i + 0] += dgx;
-        vel[2 * i + 1] += dgy;
-        pos[2 * i + 0] += vel[2 * i + 0] * dt;
-        pos[2 * i + 1] += vel[2 * i + 1] * dt;
+    arm_offset_f32(vel_x, dgx, vel_x, n);
+    arm_offset_f32(vel_y, dgy, vel_y, n);
+    const int blk = 64;
+    float tmp[64];
+    for (int i = 0; i < n; i += blk) {
+        int cnt = (n - i > blk) ? blk : (n - i);
+        arm_scale_f32(vel_x + i, dt, tmp, cnt);
+        arm_add_f32(pos_x + i, tmp, pos_x + i, cnt);
+        arm_scale_f32(vel_y + i, dt, tmp, cnt);
+        arm_add_f32(pos_y + i, tmp, pos_y + i, cnt);
     }
 }
 
-static void push_particles_apart(int num_particles, float* pos,
+static void push_particles_apart(int num_particles, float* pos_x, float* pos_y,
                                  float particle_radius, float p_inv_spacing,
                                  int p_num_x, int p_num_y,
                                  int32_t* num_cell_particles,
@@ -58,19 +65,17 @@ static void push_particles_apart(int num_particles, float* pos,
     const float min_dist2 = min_dist * min_dist;
     const int p_num_cells = p_num_x * p_num_y;
 
-    // (a) 统计每个网格里有几个粒子
     memset(num_cell_particles, 0, sizeof(int32_t) * p_num_cells);
 
     for (int i = 0; i < num_particles; i++) {
-        float x = pos[2 * i + 0];
-        float y = pos[2 * i + 1];
+        float x = pos_x[i];
+        float y = pos_y[i];
         int xi = clamp_i((int)(x * p_inv_spacing), 0, p_num_x - 1);
         int yi = clamp_i((int)(y * p_inv_spacing), 0, p_num_y - 1);
         int cell = xi * p_num_y + yi;
         num_cell_particles[cell]++;
     }
 
-    // (b) 前缀和：得到每个 cell 的粒子区间
     int first = 0;
     for (int i = 0; i < p_num_cells; i++) {
         first += num_cell_particles[i];
@@ -78,10 +83,9 @@ static void push_particles_apart(int num_particles, float* pos,
     }
     first_cell_particle[p_num_cells] = first;
 
-    // (c) 把粒子 id 塞到对应 cell 的区间里（倒填）
     for (int i = 0; i < num_particles; i++) {
-        float x = pos[2 * i + 0];
-        float y = pos[2 * i + 1];
+        float x = pos_x[i];
+        float y = pos_y[i];
         int xi = clamp_i((int)(x * p_inv_spacing), 0, p_num_x - 1);
         int yi = clamp_i((int)(y * p_inv_spacing), 0, p_num_y - 1);
         int cell = xi * p_num_y + yi;
@@ -89,11 +93,10 @@ static void push_particles_apart(int num_particles, float* pos,
         cell_particle_ids[first_cell_particle[cell]] = i;
     }
 
-    // (d) 把粒子推开：避免粒子叠在一起
     for (int it = 0; it < num_iters; it++) {
         for (int i = 0; i < num_particles; i++) {
-            float px = pos[2 * i + 0];
-            float py = pos[2 * i + 1];
+            float px = pos_x[i];
+            float py = pos_y[i];
 
             int pxi = (int)(px * p_inv_spacing);
             int pyi = (int)(py * p_inv_spacing);
@@ -114,8 +117,8 @@ static void push_particles_apart(int num_particles, float* pos,
                         if (id == i)
                             continue;
 
-                        float qx = pos[2 * id + 0];
-                        float qy = pos[2 * id + 1];
+                        float qx = pos_x[id];
+                        float qy = pos_y[id];
 
                         float dx = qx - px;
                         float dy = qy - py;
@@ -124,15 +127,16 @@ static void push_particles_apart(int num_particles, float* pos,
                         if (d2 > min_dist2 || d2 == 0.0f)
                             continue;
 
-                        float d = sqrtf(d2);
+                        float d;
+                        arm_sqrt_f32(d2, &d);
                         float s = (0.5f * (min_dist - d)) / d;
                         dx *= s;
                         dy *= s;
 
-                        pos[2 * i + 0] -= dx;
-                        pos[2 * i + 1] -= dy;
-                        pos[2 * id + 0] += dx;
-                        pos[2 * id + 1] += dy;
+                        pos_x[i] -= dx;
+                        pos_y[i] -= dy;
+                        pos_x[id] += dx;
+                        pos_y[id] += dy;
                     }
                 }
             }
@@ -140,7 +144,8 @@ static void push_particles_apart(int num_particles, float* pos,
     }
 }
 
-static void handle_particle_collisions(int n, float* pos, float* vel,
+static void handle_particle_collisions(int n, float* pos_x, float* pos_y,
+                                       float* vel_x, float* vel_y,
                                        float f_inv_spacing, int f_num_x,
                                        int f_num_y, float particle_radius) {
     float h = 1.0f / f_inv_spacing;
@@ -152,41 +157,30 @@ static void handle_particle_collisions(int n, float* pos, float* vel,
     float max_y = (f_num_y - 1) * h - r;
 
     for (int i = 0; i < n; i++) {
-        float x = pos[2 * i + 0];
-        float y = pos[2 * i + 1];
+        float x = pos_x[i];
+        float y = pos_y[i];
 
-        if (x < min_x) {
-            x = min_x;
-            vel[2 * i + 0] = 0.0f;
-        }
-        if (x > max_x) {
-            x = max_x;
-            vel[2 * i + 0] = 0.0f;
-        }
-        if (y < min_y) {
-            y = min_y;
-            vel[2 * i + 1] = 0.0f;
-        }
-        if (y > max_y) {
-            y = max_y;
-            vel[2 * i + 1] = 0.0f;
-        }
+        if (x < min_x) { x = min_x; vel_x[i] = 0.0f; }
+        if (x > max_x) { x = max_x; vel_x[i] = 0.0f; }
+        if (y < min_y) { y = min_y; vel_y[i] = 0.0f; }
+        if (y > max_y) { y = max_y; vel_y[i] = 0.0f; }
 
-        pos[2 * i + 0] = x;
-        pos[2 * i + 1] = y;
+        pos_x[i] = x;
+        pos_y[i] = y;
     }
 }
 
-static void update_particle_density(int num_particles, float* pos,
-                                    float* particle_density, int f_num_x,
-                                    int f_num_y, float h, float f_inv_spacing) {
+static void update_particle_density(int num_particles, float* pos_x,
+                                    float* pos_y, float* particle_density,
+                                    int f_num_x, int f_num_y, float h,
+                                    float f_inv_spacing) {
     const int n = f_num_y;
     const float h2 = 0.5f * h;
     memset(particle_density, 0, sizeof(float) * (f_num_x * f_num_y));
 
     for (int i = 0; i < num_particles; i++) {
-        float x = pos[2 * i + 0];
-        float y = pos[2 * i + 1];
+        float x = pos_x[i];
+        float y = pos_y[i];
 
         x = clamp_f(x, h, (f_num_x - 1) * h);
         y = clamp_f(y, h, (f_num_y - 1) * h);
@@ -227,7 +221,8 @@ static float calculate_rest_density(int f_num_cells, const int32_t* cell_type,
 }
 
 static void transfer_velocities(int to_grid, float flip_ratio,
-                                int num_particles, float* pos, float* vel,
+                                int num_particles, float* pos_x, float* pos_y,
+                                float* vel_x, float* vel_y,
                                 float* u, float* v, float* du, float* dv,
                                 float* prev_u, float* prev_v,
                                 int32_t* cell_type, const float* s, int f_num_x,
@@ -251,8 +246,8 @@ static void transfer_velocities(int to_grid, float flip_ratio,
         }
         // 粒子所在 cell -> FLUID
         for (int i = 0; i < num_particles; i++) {
-            float x = pos[2 * i + 0];
-            float y = pos[2 * i + 1];
+            float x = pos_x[i];
+            float y = pos_y[i];
             int xi = clamp_i((int)(x * f_inv_spacing), 0, f_num_x - 1);
             int yi = clamp_i((int)(y * f_inv_spacing), 0, f_num_y - 1);
             int cell = xi * n + yi;
@@ -261,7 +256,6 @@ static void transfer_velocities(int to_grid, float flip_ratio,
         }
     }
 
-    // 分两次：component=0 处理 u，component=1 处理 v
     for (int component = 0; component < 2; component++) {
         float dx = (component == 0) ? 0.0f : h2;
         float dy = (component == 0) ? h2 : 0.0f;
@@ -269,10 +263,11 @@ static void transfer_velocities(int to_grid, float flip_ratio,
         float* f = (component == 0) ? u : v;
         float* prev_f = (component == 0) ? prev_u : prev_v;
         float* d = (component == 0) ? du : dv;
+        float* vel_comp = (component == 0) ? vel_x : vel_y;
 
         for (int i = 0; i < num_particles; i++) {
-            float x = pos[2 * i + 0];
-            float y = pos[2 * i + 1];
+            float x = pos_x[i];
+            float y = pos_y[i];
 
             x = clamp_f(x, h, (f_num_x - 1) * h);
             y = clamp_f(y, h, (f_num_y - 1) * h);
@@ -299,7 +294,7 @@ static void transfer_velocities(int to_grid, float flip_ratio,
             int nr3 = x0 * n + y1;
 
             if (to_grid) {
-                float pv = vel[2 * i + component];
+                float pv = vel_comp[i];
                 f[nr0] += pv * w0;
                 d[nr0] += w0;
                 f[nr1] += pv * w1;
@@ -327,7 +322,7 @@ static void transfer_velocities(int to_grid, float flip_ratio,
                                    ? 1.0f
                                    : 0.0f;
 
-                float v_curr = vel[2 * i + component];
+                float v_curr = vel_comp[i];
                 float d_sum =
                     valid0 * w0 + valid1 * w1 + valid2 * w2 + valid3 * w3;
 
@@ -344,7 +339,7 @@ static void transfer_velocities(int to_grid, float flip_ratio,
                                  d_sum;
 
                     float flip_v = v_curr + corr;
-                    vel[2 * i + component] =
+                    vel_comp[i] =
                         (1.0f - flip_ratio) * pic_v + flip_ratio * flip_v;
                 }
             }
@@ -573,8 +568,10 @@ FlipFluid* flip_create(float sim_w, float sim_h, int visible_res,
         !alloc_floats(&f->p, f->f_num_cells) ||
         !alloc_floats(&f->s, f->f_num_cells) ||
         !alloc_i32(&f->cell_type, f->f_num_cells) ||
-        !alloc_floats(&f->particle_pos, 2 * f->max_particles) ||
-        !alloc_floats(&f->particle_vel, 2 * f->max_particles) ||
+        !alloc_floats(&f->pos_x, f->max_particles) ||
+        !alloc_floats(&f->pos_y, f->max_particles) ||
+        !alloc_floats(&f->vel_x, f->max_particles) ||
+        !alloc_floats(&f->vel_y, f->max_particles) ||
         !alloc_floats(&f->particle_density, f->f_num_cells) ||
         !alloc_i32(&f->num_cell_particles, f->p_num_cells) ||
         !alloc_i32(&f->first_cell_particle, f->p_num_cells + 1) ||
@@ -584,13 +581,11 @@ FlipFluid* flip_create(float sim_w, float sim_h, int visible_res,
     }
     // 初始化
     f->num_particles = num_x * num_y;
-    int p_idx = 0;
     for (int i = 0; i < num_x; i++) {
         for (int j = 0; j < num_y; j++) {
-            f->particle_pos[p_idx + 0] =
-                h + r + dx * i + ((j % 2 == 0) ? 0.0f : r);
-            f->particle_pos[p_idx + 1] = h + r + dy * j;
-            p_idx += 2;
+            int idx = i * num_y + j;
+            f->pos_x[idx] = h + r + dx * i + ((j % 2 == 0) ? 0.0f : r);
+            f->pos_y[idx] = h + r + dy * j;
         }
     }
 
@@ -625,8 +620,10 @@ void flip_destroy(FlipFluid* f) {
     vPortFree(f->p);
     vPortFree(f->s);
     vPortFree(f->cell_type);
-    vPortFree(f->particle_pos);
-    vPortFree(f->particle_vel);
+    vPortFree(f->pos_x);
+    vPortFree(f->pos_y);
+    vPortFree(f->vel_x);
+    vPortFree(f->vel_y);
     vPortFree(f->particle_density);
     vPortFree(f->num_cell_particles);
     vPortFree(f->first_cell_particle);
@@ -641,25 +638,26 @@ void flip_step(FlipFluid* f, float dt, float gx, float gy) {
     float Gx = gx * f->gravity_scale;
     float Gy = gy * f->gravity_scale;
 
-    integrate_particles(f->num_particles, f->particle_pos, f->particle_vel, dt,
-                        Gx, Gy);
+    integrate_particles(f->num_particles, f->pos_x, f->pos_y, f->vel_x,
+                        f->vel_y, dt, Gx, Gy);
 
-    push_particles_apart(f->num_particles, f->particle_pos, f->particle_radius,
-                         f->p_inv_spacing, f->p_num_x, f->p_num_y,
-                         f->num_cell_particles, f->first_cell_particle,
-                         f->cell_particle_ids, f->push_iters);
+    push_particles_apart(f->num_particles, f->pos_x, f->pos_y,
+                         f->particle_radius, f->p_inv_spacing, f->p_num_x,
+                         f->p_num_y, f->num_cell_particles,
+                         f->first_cell_particle, f->cell_particle_ids,
+                         f->push_iters);
 
-    handle_particle_collisions(f->num_particles, f->particle_pos,
-                               f->particle_vel, f->f_inv_spacing, f->f_num_x,
+    handle_particle_collisions(f->num_particles, f->pos_x, f->pos_y, f->vel_x,
+                               f->vel_y, f->f_inv_spacing, f->f_num_x,
                                f->f_num_y, f->particle_radius);
 
-    transfer_velocities(1, f->flip_ratio, f->num_particles,
-                        f->particle_pos, f->particle_vel, f->u, f->v, f->du,
-                        f->dv, f->prev_u, f->prev_v, f->cell_type, f->s,
-                        f->f_num_x, f->f_num_y, f->h, f->f_inv_spacing,
-                        f->AIR_CELL, f->FLUID_CELL, f->SOLID_CELL);
+    transfer_velocities(1, f->flip_ratio, f->num_particles, f->pos_x, f->pos_y,
+                        f->vel_x, f->vel_y, f->u, f->v, f->du, f->dv,
+                        f->prev_u, f->prev_v, f->cell_type, f->s, f->f_num_x,
+                        f->f_num_y, f->h, f->f_inv_spacing, f->AIR_CELL,
+                        f->FLUID_CELL, f->SOLID_CELL);
 
-    update_particle_density(f->num_particles, f->particle_pos,
+    update_particle_density(f->num_particles, f->pos_x, f->pos_y,
                             f->particle_density, f->f_num_x, f->f_num_y, f->h,
                             f->f_inv_spacing);
 
@@ -674,11 +672,11 @@ void flip_step(FlipFluid* f, float dt, float gx, float gy) {
         f->particle_density, f->particle_rest_density, f->f_num_x, f->f_num_y,
         f->h, f->density, f->FLUID_CELL);
 
-    transfer_velocities(0, f->flip_ratio, f->num_particles,
-                        f->particle_pos, f->particle_vel, f->u, f->v, f->du,
-                        f->dv, f->prev_u, f->prev_v, f->cell_type, f->s,
-                        f->f_num_x, f->f_num_y, f->h, f->f_inv_spacing,
-                        f->AIR_CELL, f->FLUID_CELL, f->SOLID_CELL);
+    transfer_velocities(0, f->flip_ratio, f->num_particles, f->pos_x, f->pos_y,
+                        f->vel_x, f->vel_y, f->u, f->v, f->du, f->dv,
+                        f->prev_u, f->prev_v, f->cell_type, f->s, f->f_num_x,
+                        f->f_num_y, f->h, f->f_inv_spacing, f->AIR_CELL,
+                        f->FLUID_CELL, f->SOLID_CELL);
 }
 
 void flip_get_led_grid(const FlipFluid* f, float* out_grid) {

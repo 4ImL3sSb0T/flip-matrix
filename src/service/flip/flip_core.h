@@ -68,8 +68,8 @@ typedef struct FlipFluid {
     /* ---- 粒子系统 ---- */
     int max_particles;          /**< 粒子容量上限 */
     int num_particles;          /**< 当前活跃粒子数 */
-    float *particle_pos;        /**< 粒子位置数组 (交错 x,y) */
-    float *particle_vel;        /**< 粒子速度数组 (交错 u,v) */
+    float *pos_x, *pos_y;       /**< 粒子位置 (SoA: 独立 x[], y[]) */
+    float *vel_x, *vel_y;       /**< 粒子速度 (SoA: 独立 u[], v[]) */
     float *particle_density;    /**< 每个粒子的密度值 */
     float particle_rest_density;/**< 粒子静止密度 */
 
