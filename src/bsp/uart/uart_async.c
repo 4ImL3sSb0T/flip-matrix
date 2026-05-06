@@ -23,6 +23,9 @@ static StreamBufferHandle_t uart_rx_stream_buffer = NULL;
 
 static TaskHandle_t uart_async_tx_task_handle = NULL;
 
+// 唐完了，这里要加互斥锁,AI瞎jb说,StreamBuffer不支持多任务写入
+static SemaphoreHandle_t uart_tx_mutex = NULL;
+
 static volatile uint16_t rx_last_pos = 0;
 static volatile uint32_t rx_errors = 0;
 static volatile uint32_t rx_dropped = 0;
@@ -54,6 +57,9 @@ exit_code_t uart_async_init(void)
     if (uart_rx_stream_buffer == NULL)
         return EXIT_NO_MEMORY;
 
+    uart_tx_mutex = xSemaphoreCreateMutex();
+    if (uart_tx_mutex == NULL)
+        return EXIT_NO_MEMORY;
 
     return EXIT_OK;
 }
@@ -78,14 +84,19 @@ exit_code_t uart_async_start() {
 
 exit_code_t uart_async_write(const uint8_t* data, const uint32_t len, const TickType_t timeout) {
     if (len == 0) return EXIT_OK;
+
+    xSemaphoreTake(uart_tx_mutex, portMAX_DELAY);
     const size_t sent = xStreamBufferSend(uart_tx_stream_buffer, data, len, timeout);
+    xSemaphoreGive(uart_tx_mutex);
     if (sent != len)
         return EXIT_FAIL;
     return EXIT_OK;
 }
 
 size_t uart_async_read(uint8_t* data, const uint32_t len, const TickType_t timeout) {
+    xSemaphoreTake(uart_tx_mutex, portMAX_DELAY);
     const size_t received = xStreamBufferReceive(uart_rx_stream_buffer, data, len, timeout);
+    xSemaphoreGive(uart_tx_mutex);
     return received;
 }
 
