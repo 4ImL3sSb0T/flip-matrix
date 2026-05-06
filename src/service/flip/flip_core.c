@@ -12,15 +12,13 @@ Modifications/port to C:
 #include "flip_core.h"
 
 #include "arm_math.h"
+#include "task.h"
 
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-
-TaskHandle_t flip_task_handle;
-SemaphoreHandle_t flip_res_semphr;
 
 // gamma LUT
 static bool s_gamma_inited = false;
@@ -614,8 +612,6 @@ FlipFluid* flip_create(float sim_w, float sim_h, int visible_res,
 
 void flip_destroy(FlipFluid* f) {
     if (!f) return;
-    if (flip_task_handle) vTaskDelete(flip_task_handle);
-    flip_task_handle = NULL;
 
     if (f->u) vPortFree(f->u);
     if (f->v) vPortFree(f->v);
@@ -694,48 +690,3 @@ void flip_get_led_grid(const FlipFluid* f, float* out_grid) {
     get_led_grid(f, out_grid, visible_x, visible_y);
 }
 
-typedef struct {
-    FlipFluid *f;
-    float dt;
-} flip_task_ctx_t;
-
-#define FLIP_TASK_STACK_SIZE 1024
-#define FLIP_TASK_PRIORITY   10
-
-static void flip_task(void *param) {
-    flip_task_ctx_t *ctx = (flip_task_ctx_t *)param;
-    FlipFluid *f = ctx->f;
-    const float dt = ctx->dt;
-    vPortFree(ctx);
-    const uint32_t ms = (uint32_t)(dt * 1000);
-
-    flip_set_solver_quality(f, 4, 12, 0.6f);
-    flip_set_gravity_scale(f, 9.81f);
-
-    TickType_t xLastWakeTime = xTaskGetTickCount();
-
-    for (;;) {
-        flip_step(f, dt, 0.0f, -1.0f);
-        vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(ms));
-    }
-    vTaskDelete(NULL);
-}
-
-TaskHandle_t flip_task_start(FlipFluid *f, float dt_s) {
-    if (!f) return NULL;
-
-    flip_task_ctx_t *ctx = pvPortMalloc(sizeof(flip_task_ctx_t));
-    if (!ctx) return NULL;
-    ctx->f = f;
-    ctx->dt = dt_s;
-
-    flip_res_semphr = xSemaphoreCreateBinary();
-
-    const BaseType_t ret = xTaskCreate(flip_task, "flip", FLIP_TASK_STACK_SIZE,
-                                       ctx, FLIP_TASK_PRIORITY, &flip_task_handle);
-    if (ret != pdPASS) {
-        vPortFree(ctx);
-        return NULL;
-    }
-    return flip_task_handle;
-}

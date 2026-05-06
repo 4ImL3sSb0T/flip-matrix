@@ -8,7 +8,8 @@
       "Bash(cmake --build --preset Debug)",
       "Bash(arm-none-eabi-nm --print-size --size-sort --radix=d D:/Project/H750/H7RTOS/build/Debug/H7RTOS.elf)",
       "Bash(awk '{sum += strtonum\\(\"0x\"$2\\)} END {printf \"Total .text \\(T\\): %d bytes\\\\n\", sum}')",
-      "Bash(arm-none-eabi-objdump -h D:/Project/H750/H7RTOS/build/Debug/H7RTOS.elf)"
+      "Bash(arm-none-eabi-objdump -h D:/Project/H750/H7RTOS/build/Debug/H7RTOS.elf)",
+      "Bash(python *)"
     ],
     "additionalDirectories": [
       "D:\\Project\\OpenSoucre\\letter-shell"

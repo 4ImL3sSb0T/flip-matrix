@@ -72,6 +72,8 @@ set(USER_SOURCES
     src/service/tools/vec_math.c
     src/service/cli/cpu_cmd.c
     src/service/flip/flip_core.c
+    src/app/app_water_sim.c
+    src/app/app_water_sim_cmd.c
 )
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE

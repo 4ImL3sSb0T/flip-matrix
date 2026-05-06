@@ -13,8 +13,6 @@
 #include "service/tools/common_def.h"
 
 #include "FreeRTOS.h"
-#include "task.h"
-#include "semphr.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -183,8 +181,6 @@ void flip_set_solver_quality(FlipFluid *f, int push_iters,
  * @param out_grid 输出缓冲区，长度 = 网格分辨率²，值范围 [0, LED_VAL_MAX_F]
  */
 void flip_get_led_grid(const FlipFluid *f, float *out_grid);
-
-TaskHandle_t flip_task_start(FlipFluid *f, float dt_s);
 
 #ifdef __cplusplus
 }
