@@ -2,6 +2,9 @@
 #include "MadgwickAHRS/MadgwickAHRS.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include "semphr.h"
+
+SemaphoreHandle_t imu_sensor_handler_semaphore;
 
 static imu_sensor_t* imu_sensor_handler = NULL;
 static imu_mode_t imu_mode = IMU_SERVICE_WITHOUT_MAG;
@@ -14,6 +17,7 @@ exit_code_t imu_service_init(imu_sensor_t* imu_sensor) {
     imu_sensor_handler = imu_sensor;
     imu_sensor_handler->imu_init();
     imu_sensor_handler->is_initialized = true;
+    imu_sensor_handler_semaphore = xSemaphoreCreateMutex();
     return EXIT_OK;
 }
 void imu_service_task(void* dt) {
@@ -22,9 +26,11 @@ void imu_service_task(void* dt) {
     while (1) {
 
         vec3f acc, gyro, mag;
+        xSemaphoreTake(imu_sensor_handler_semaphore, portMAX_DELAY);
         imu_sensor_handler->imu_get_acc(&acc);
         imu_sensor_handler->imu_get_gyro(&gyro);
         imu_sensor_handler->imu_get_mag(&mag);
+        xSemaphoreGive(imu_sensor_handler_semaphore);
 
         switch (imu_mode)
         {
@@ -55,15 +61,19 @@ exit_code_t imu_service_get_euler(vec3f* euler) {
 }
 exit_code_t imu_service_get_sensor(vec3f* acc, vec3f* gyro, vec3f* mag) {
     if (imu_sensor_handler == NULL) return EXIT_NOT_INITIALIZED;
+    xSemaphoreTake(imu_sensor_handler_semaphore, portMAX_DELAY);
     imu_sensor_handler->imu_get_acc(acc);
     imu_sensor_handler->imu_get_gyro(gyro);
     imu_sensor_handler->imu_get_mag(mag);
+    xSemaphoreGive(imu_sensor_handler_semaphore);
     return EXIT_OK;
 }
 exit_code_t imu_service_deinit() {
     if (imu_sensor_handler == NULL || imu_sensor_handler->imu_deinit == NULL) return EXIT_NOT_INITIALIZED;
     vTaskDelete(imu_service_task_handle);
+    xSemaphoreTake(imu_sensor_handler_semaphore, portMAX_DELAY);
     imu_sensor_handler->imu_deinit();
+    xSemaphoreGive(imu_sensor_handler_semaphore);
     return EXIT_OK;
 }
 
