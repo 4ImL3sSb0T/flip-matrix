@@ -65,6 +65,8 @@ void Error_Handler(void);
 #define GREEN_GPIO_Port GPIOC
 #define BLUE_Pin GPIO_PIN_2
 #define BLUE_GPIO_Port GPIOC
+#define SPI2_CS_Pin GPIO_PIN_13
+#define SPI2_CS_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

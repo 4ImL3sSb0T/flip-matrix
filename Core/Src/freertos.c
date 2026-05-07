@@ -29,6 +29,8 @@
 
 #include "app/app_water_sim.h"
 #include "bsp/uart/uart_async.h"
+#include "bsp/imu963ra/imu963ra.h"
+#include "service/imu/imu_service.h"
 #include "service/cli/port/shell_port.h"
 #include "service/cli/log/log.h"
 /* USER CODE END Includes */
@@ -56,8 +58,8 @@
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
-  .stack_size = 512 * 4,
-  .priority = (osPriority_t) osPriorityLow,
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
 };
 
 /* Private function prototypes -----------------------------------------------*/
@@ -123,6 +125,17 @@ void StartDefaultTask(void *argument)
   uart_async_start();
   shell_port_init();
   shell_port_start();
+
+  static imu_sensor_t imu963ra_sensor = {
+      .imu_init = imu963ra_init,
+      .imu_deinit = imu963ra_deinit,
+      .imu_get_acc = imu963ra_read_acc,
+      .imu_get_gyro = imu963ra_read_gyro,
+      .imu_get_mag = imu963ra_read_mag,
+      .is_initialized = false,
+  };
+  imu_service_init(&imu963ra_sensor);
+  imu_service_start();
 
   app_water_sim_init();
   app_water_sim_start();
