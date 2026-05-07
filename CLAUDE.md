@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## User
+
+- GitHub ID: `4ImL3sSb0T`
+
 ## Build Commands
 
 Requires `arm-none-eabi-` toolchain on PATH. Uses CMake + Ninja.

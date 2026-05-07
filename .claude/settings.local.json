@@ -9,7 +9,10 @@
       "Bash(arm-none-eabi-nm --print-size --size-sort --radix=d D:/Project/H750/H7RTOS/build/Debug/H7RTOS.elf)",
       "Bash(awk '{sum += strtonum\\(\"0x\"$2\\)} END {printf \"Total .text \\(T\\): %d bytes\\\\n\", sum}')",
       "Bash(arm-none-eabi-objdump -h D:/Project/H750/H7RTOS/build/Debug/H7RTOS.elf)",
-      "Bash(python *)"
+      "Bash(python *)",
+      "mcp__dashscope-github__search_repositories",
+      "mcp__dashscope-github__search_code",
+      "mcp__dashscope-github__get_file_contents"
     ],
     "additionalDirectories": [
       "D:\\Project\\OpenSoucre\\letter-shell"
