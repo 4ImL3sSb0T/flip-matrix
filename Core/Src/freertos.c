@@ -29,7 +29,7 @@
 
 #include "app/app_water_sim.h"
 #include "bsp/uart/uart_async.h"
-#include "bsp/imu963ra/imu963ra.h"
+#include "bsp/imu963ra/zf_device_imu963ra.h"
 #include "service/imu/imu_service.h"
 #include "service/cli/port/shell_port.h"
 #include "service/cli/log/log.h"

@@ -56,7 +56,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 set(USER_SOURCES
-    src/bsp/imu963ra/imu963ra.c
+    src/bsp/imu963ra/zf_device_imu963ra.c
     src/bsp/uart/uart_async.c
     src/bsp/ws2812b/driver_ws2812b.c
     src/bsp/ws2812b/driver_ws2812b_interface.c

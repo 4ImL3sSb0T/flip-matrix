@@ -17,7 +17,8 @@
       "Bash(awk '{size=$3; obj=$4; split\\(obj,a,\"/\"\\); file=a[length\\(a\\)]; sizes[file]+=strtonum\\(size\\)} END {for\\(f in sizes\\) printf \"%8d %s\\\\n\", sizes[f], f}')"
     ],
     "additionalDirectories": [
-      "D:\\Project\\OpenSoucre\\letter-shell"
+      "D:\\Project\\OpenSoucre\\letter-shell",
+      "D:\\Project\\SmartCar\\RT1064\\Jupiter"
     ]
   }
 }
