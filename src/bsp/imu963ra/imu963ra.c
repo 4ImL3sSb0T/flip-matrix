@@ -3,6 +3,8 @@
 #include "main.h"
 #include "cmsis_os.h"
 
+#define EXIT_IF_ERR(expr)  do { ec = (expr); if (ec != EXIT_OK) return ec; } while (0)
+
 /* ── IMU963RA register map ─────────────────────────────────────────── */
 
 #define IMU963RA_SPI_W              (0x00)
@@ -41,7 +43,7 @@
 
 /* ── Configuration constants ───────────────────────────────────────── */
 
-#define IMU963RA_TIMEOUT_COUNT      (0x00FF)
+#define IMU963RA_TIMEOUT_COUNT      (100)
 
 /* Default ranges: ±8G acc, ±2000DPS gyro, 8G mag */
 #define ACC_CTRL1_VAL               (0x8C)
@@ -66,76 +68,103 @@ static inline void cs_high(void)
     HAL_GPIO_WritePin(SPI2_CS_GPIO_Port, SPI2_CS_Pin, GPIO_PIN_SET);
 }
 
-static void spi_write_reg(uint8_t reg, uint8_t data)
+static exit_code_t spi_write_reg(uint8_t reg, uint8_t data)
 {
     uint8_t tx[2] = { reg | IMU963RA_SPI_W, data };
     cs_low();
-    HAL_SPI_Transmit(&hspi2, tx, 2, HAL_MAX_DELAY);
+    HAL_StatusTypeDef st = HAL_SPI_Transmit(&hspi2, tx, 2, HAL_MAX_DELAY);
     cs_high();
+    return (st == HAL_OK) ? EXIT_OK : EXIT_HW_FAILURE;
 }
 
-static uint8_t spi_read_reg(uint8_t reg)
+static exit_code_t spi_read_reg(uint8_t reg, uint8_t *val)
 {
     uint8_t tx = reg | IMU963RA_SPI_R;
     uint8_t rx = 0;
     cs_low();
-    HAL_SPI_Transmit(&hspi2, &tx, 1, HAL_MAX_DELAY);
-    HAL_SPI_Receive(&hspi2, &rx, 1, HAL_MAX_DELAY);
+    HAL_StatusTypeDef st = HAL_SPI_Transmit(&hspi2, &tx, 1, HAL_MAX_DELAY);
+    if (st != HAL_OK) { cs_high(); return EXIT_HW_FAILURE; }
+    st = HAL_SPI_Receive(&hspi2, &rx, 1, HAL_MAX_DELAY);
     cs_high();
-    return rx;
+    if (st != HAL_OK) return EXIT_HW_FAILURE;
+    *val = rx;
+    return EXIT_OK;
 }
 
-static void spi_read_regs(uint8_t reg, uint8_t *buf, uint8_t len)
+static exit_code_t spi_read_regs(uint8_t reg, uint8_t *buf, uint8_t len)
 {
     uint8_t tx = reg | IMU963RA_SPI_R;
     cs_low();
-    HAL_SPI_Transmit(&hspi2, &tx, 1, HAL_MAX_DELAY);
-    HAL_SPI_Receive(&hspi2, buf, len, HAL_MAX_DELAY);
+    HAL_StatusTypeDef st = HAL_SPI_Transmit(&hspi2, &tx, 1, HAL_MAX_DELAY);
+    if (st != HAL_OK) { cs_high(); return EXIT_HW_FAILURE; }
+    st = HAL_SPI_Receive(&hspi2, buf, len, HAL_MAX_DELAY);
     cs_high();
+    return (st == HAL_OK) ? EXIT_OK : EXIT_HW_FAILURE;
 }
 
 /* ── Sensor hub helpers (magnetometer via internal I2C master) ─────── */
 
-static uint8_t imu_write_mag_reg(uint8_t addr, uint8_t reg, uint8_t data)
+static exit_code_t imu_write_mag_reg(uint8_t addr, uint8_t reg, uint8_t data)
 {
+    exit_code_t ec;
     uint8_t addr_8bit = addr << 1;
-    spi_write_reg(IMU963RA_SLV0_CONFIG, 0x00);
-    spi_write_reg(IMU963RA_SLV0_ADD, addr_8bit | 0);
-    spi_write_reg(IMU963RA_SLV0_SUBADD, reg);
-    spi_write_reg(IMU963RA_DATAWRITE_SLV0, data);
-    spi_write_reg(IMU963RA_MASTER_CONFIG, 0x4C);
+    ec = spi_write_reg(IMU963RA_SLV0_CONFIG, 0x00);
+    if (ec != EXIT_OK) return ec;
+    ec = spi_write_reg(IMU963RA_SLV0_ADD, addr_8bit | 0);
+    if (ec != EXIT_OK) return ec;
+    ec = spi_write_reg(IMU963RA_SLV0_SUBADD, reg);
+    if (ec != EXIT_OK) return ec;
+    ec = spi_write_reg(IMU963RA_DATAWRITE_SLV0, data);
+    if (ec != EXIT_OK) return ec;
+    ec = spi_write_reg(IMU963RA_MASTER_CONFIG, 0x4C);
+    if (ec != EXIT_OK) return ec;
 
     for (uint16_t t = 0; t < IMU963RA_TIMEOUT_COUNT; t++) {
-        if (spi_read_reg(IMU963RA_STATUS_MASTER) & 0x80)
-            return 0;
+        uint8_t status;
+        ec = spi_read_reg(IMU963RA_STATUS_MASTER, &status);
+        if (ec != EXIT_OK) return ec;
+        if (status & 0x80)
+            return EXIT_OK;
         osDelay(2);
     }
-    return 1;
+    return EXIT_TIMEOUT;
 }
 
-static uint8_t imu_read_mag_reg(uint8_t addr, uint8_t reg)
+static exit_code_t imu_read_mag_reg(uint8_t addr, uint8_t reg, uint8_t *val)
 {
+    exit_code_t ec;
     uint8_t addr_8bit = addr << 1;
-    spi_write_reg(IMU963RA_SLV0_ADD, addr_8bit | 1);
-    spi_write_reg(IMU963RA_SLV0_SUBADD, reg);
-    spi_write_reg(IMU963RA_SLV0_CONFIG, 0x01);
-    spi_write_reg(IMU963RA_MASTER_CONFIG, 0x4C);
+    ec = spi_write_reg(IMU963RA_SLV0_ADD, addr_8bit | 1);
+    if (ec != EXIT_OK) return ec;
+    ec = spi_write_reg(IMU963RA_SLV0_SUBADD, reg);
+    if (ec != EXIT_OK) return ec;
+    ec = spi_write_reg(IMU963RA_SLV0_CONFIG, 0x01);
+    if (ec != EXIT_OK) return ec;
+    ec = spi_write_reg(IMU963RA_MASTER_CONFIG, 0x4C);
+    if (ec != EXIT_OK) return ec;
 
     for (uint16_t t = 0; t < IMU963RA_TIMEOUT_COUNT; t++) {
-        if (spi_read_reg(IMU963RA_STATUS_MASTER) & 0x01)
-            break;
+        uint8_t status;
+        ec = spi_read_reg(IMU963RA_STATUS_MASTER, &status);
+        if (ec != EXIT_OK) return ec;
+        if (status & 0x01)
+            return spi_read_reg(IMU963RA_SENSOR_HUB_1, val);
         osDelay(2);
     }
-    return spi_read_reg(IMU963RA_SENSOR_HUB_1);
+    return EXIT_TIMEOUT;
 }
 
-static void imu_connect_mag(uint8_t addr, uint8_t reg)
+static exit_code_t imu_connect_mag(uint8_t addr, uint8_t reg)
 {
+    exit_code_t ec;
     uint8_t addr_8bit = addr << 1;
-    spi_write_reg(IMU963RA_SLV0_ADD, addr_8bit | 1);
-    spi_write_reg(IMU963RA_SLV0_SUBADD, reg);
-    spi_write_reg(IMU963RA_SLV0_CONFIG, 0x06);
-    spi_write_reg(IMU963RA_MASTER_CONFIG, 0x6C);
+    ec = spi_write_reg(IMU963RA_SLV0_ADD, addr_8bit | 1);
+    if (ec != EXIT_OK) return ec;
+    ec = spi_write_reg(IMU963RA_SLV0_SUBADD, reg);
+    if (ec != EXIT_OK) return ec;
+    ec = spi_write_reg(IMU963RA_SLV0_CONFIG, 0x06);
+    if (ec != EXIT_OK) return ec;
+    return spi_write_reg(IMU963RA_MASTER_CONFIG, 0x6C);
 }
 
 /* ── Self-check ────────────────────────────────────────────────────── */
@@ -143,7 +172,8 @@ static void imu_connect_mag(uint8_t addr, uint8_t reg)
 static exit_code_t acc_gyro_self_check(void)
 {
     for (uint16_t t = 0; t < IMU963RA_TIMEOUT_COUNT; t++) {
-        if (spi_read_reg(IMU963RA_WHO_AM_I) == 0x6B)
+        uint8_t id;
+        if (spi_read_reg(IMU963RA_WHO_AM_I, &id) == EXIT_OK && id == 0x6B)
             return EXIT_OK;
         osDelay(10);
     }
@@ -153,7 +183,8 @@ static exit_code_t acc_gyro_self_check(void)
 static exit_code_t mag_self_check(void)
 {
     for (uint16_t t = 0; t < IMU963RA_TIMEOUT_COUNT; t++) {
-        if (imu_read_mag_reg(IMU963RA_MAG_ADDR, IMU963RA_MAG_CHIP_ID) == 0xFF)
+        uint8_t id;
+        if (imu_read_mag_reg(IMU963RA_MAG_ADDR, IMU963RA_MAG_CHIP_ID, &id) == EXIT_OK && id == 0xFF)
             return EXIT_OK;
         osDelay(10);
     }
@@ -166,54 +197,55 @@ static bool initialized = false;
 
 exit_code_t imu963ra_init(void)
 {
+    exit_code_t ec;
     osDelay(10);
 
     do {
-        spi_write_reg(IMU963RA_FUNC_CFG_ACCESS, 0x00);
-        spi_write_reg(IMU963RA_CTRL3_C, 0x01);       /* reset */
+        EXIT_IF_ERR(spi_write_reg(IMU963RA_FUNC_CFG_ACCESS, 0x00));
+        EXIT_IF_ERR(spi_write_reg(IMU963RA_CTRL3_C, 0x01));       /* reset */
         osDelay(2);
-        spi_write_reg(IMU963RA_FUNC_CFG_ACCESS, 0x00);
+        EXIT_IF_ERR(spi_write_reg(IMU963RA_FUNC_CFG_ACCESS, 0x00));
 
         if (acc_gyro_self_check() != EXIT_OK)
             break;
 
-        spi_write_reg(IMU963RA_INT1_CTRL, 0x03);     /* data-ready interrupt */
+        EXIT_IF_ERR(spi_write_reg(IMU963RA_INT1_CTRL, 0x03));     /* data-ready interrupt */
 
         /* Accelerometer: ±8G, 1.66kHz ODR */
-        spi_write_reg(IMU963RA_CTRL1_XL, ACC_CTRL1_VAL);
+        EXIT_IF_ERR(spi_write_reg(IMU963RA_CTRL1_XL, ACC_CTRL1_VAL));
 
         /* Gyroscope: ±2000DPS, 1.66kHz ODR */
-        spi_write_reg(IMU963RA_CTRL2_G, GYRO_CTRL2_VAL);
+        EXIT_IF_ERR(spi_write_reg(IMU963RA_CTRL2_G, GYRO_CTRL2_VAL));
 
         /* DLPF and mode config */
-        spi_write_reg(IMU963RA_CTRL3_C, 0x44);
-        spi_write_reg(IMU963RA_CTRL4_C, 0x02);
-        spi_write_reg(IMU963RA_CTRL5_C, 0x00);
-        spi_write_reg(IMU963RA_CTRL6_C, 0x00);
-        spi_write_reg(IMU963RA_CTRL7_G, 0x00);
-        spi_write_reg(IMU963RA_CTRL9_XL, 0x01);     /* disable I3C */
+        EXIT_IF_ERR(spi_write_reg(IMU963RA_CTRL3_C, 0x44));
+        EXIT_IF_ERR(spi_write_reg(IMU963RA_CTRL4_C, 0x02));
+        EXIT_IF_ERR(spi_write_reg(IMU963RA_CTRL5_C, 0x00));
+        EXIT_IF_ERR(spi_write_reg(IMU963RA_CTRL6_C, 0x00));
+        EXIT_IF_ERR(spi_write_reg(IMU963RA_CTRL7_G, 0x00));
+        EXIT_IF_ERR(spi_write_reg(IMU963RA_CTRL9_XL, 0x01));     /* disable I3C */
 
         /* Sensor hub: configure magnetometer */
-        spi_write_reg(IMU963RA_FUNC_CFG_ACCESS, 0x40);
-        spi_write_reg(IMU963RA_MASTER_CONFIG, 0x80); /* reset I2C master */
+        EXIT_IF_ERR(spi_write_reg(IMU963RA_FUNC_CFG_ACCESS, 0x40));
+        EXIT_IF_ERR(spi_write_reg(IMU963RA_MASTER_CONFIG, 0x80)); /* reset I2C master */
         osDelay(2);
-        spi_write_reg(IMU963RA_MASTER_CONFIG, 0x00);
+        EXIT_IF_ERR(spi_write_reg(IMU963RA_MASTER_CONFIG, 0x00));
         osDelay(2);
 
-        imu_write_mag_reg(IMU963RA_MAG_ADDR, IMU963RA_MAG_CONTROL2, 0x80);
+        EXIT_IF_ERR(imu_write_mag_reg(IMU963RA_MAG_ADDR, IMU963RA_MAG_CONTROL2, 0x80));
         osDelay(2);
-        imu_write_mag_reg(IMU963RA_MAG_ADDR, IMU963RA_MAG_CONTROL2, 0x00);
+        EXIT_IF_ERR(imu_write_mag_reg(IMU963RA_MAG_ADDR, IMU963RA_MAG_CONTROL2, 0x00));
         osDelay(2);
 
         if (mag_self_check() != EXIT_OK)
             break;
 
         /* Magnetometer: 8G range */
-        imu_write_mag_reg(IMU963RA_MAG_ADDR, IMU963RA_MAG_CONTROL1, MAG_CONTROL1_VAL);
-        imu_write_mag_reg(IMU963RA_MAG_ADDR, IMU963RA_MAG_FBR, 0x01);
-        imu_connect_mag(IMU963RA_MAG_ADDR, IMU963RA_MAG_OUTX_L);
+        EXIT_IF_ERR(imu_write_mag_reg(IMU963RA_MAG_ADDR, IMU963RA_MAG_CONTROL1, MAG_CONTROL1_VAL));
+        EXIT_IF_ERR(imu_write_mag_reg(IMU963RA_MAG_ADDR, IMU963RA_MAG_FBR, 0x01));
+        EXIT_IF_ERR(imu_connect_mag(IMU963RA_MAG_ADDR, IMU963RA_MAG_OUTX_L));
 
-        spi_write_reg(IMU963RA_FUNC_CFG_ACCESS, 0x00);
+        EXIT_IF_ERR(spi_write_reg(IMU963RA_FUNC_CFG_ACCESS, 0x00));
         osDelay(20);
 
         initialized = true;
@@ -225,8 +257,18 @@ exit_code_t imu963ra_init(void)
 
 exit_code_t imu963ra_deinit(void)
 {
+    exit_code_t ec;
+
+    /* Software reset the sensor */
+    ec = spi_write_reg(IMU963RA_CTRL3_C, 0x01);
+
+    /* Shut down sensor hub */
+    spi_write_reg(IMU963RA_FUNC_CFG_ACCESS, 0x40);
+    spi_write_reg(IMU963RA_MASTER_CONFIG, 0x00);
+    spi_write_reg(IMU963RA_FUNC_CFG_ACCESS, 0x00);
+
     initialized = false;
-    return EXIT_OK;
+    return (ec != EXIT_OK) ? ec : EXIT_OK;
 }
 
 exit_code_t imu963ra_read_acc(vec3f *acc)
@@ -234,7 +276,8 @@ exit_code_t imu963ra_read_acc(vec3f *acc)
     if (!initialized || acc == NULL) return EXIT_NOT_INITIALIZED;
 
     uint8_t dat[6];
-    spi_read_regs(IMU963RA_OUTX_L_A, dat, 6);
+    exit_code_t ec = spi_read_regs(IMU963RA_OUTX_L_A, dat, 6);
+    if (ec != EXIT_OK) return ec;
 
     int16_t raw_x = (int16_t)((uint16_t)dat[1] << 8 | dat[0]);
     int16_t raw_y = (int16_t)((uint16_t)dat[3] << 8 | dat[2]);
@@ -251,7 +294,8 @@ exit_code_t imu963ra_read_gyro(vec3f *gyro)
     if (!initialized || gyro == NULL) return EXIT_NOT_INITIALIZED;
 
     uint8_t dat[6];
-    spi_read_regs(IMU963RA_OUTX_L_G, dat, 6);
+    exit_code_t ec = spi_read_regs(IMU963RA_OUTX_L_G, dat, 6);
+    if (ec != EXIT_OK) return ec;
 
     int16_t raw_x = (int16_t)((uint16_t)dat[1] << 8 | dat[0]);
     int16_t raw_y = (int16_t)((uint16_t)dat[3] << 8 | dat[2]);
@@ -269,11 +313,18 @@ exit_code_t imu963ra_read_mag(vec3f *mag)
     if (!initialized || mag == NULL) return EXIT_NOT_INITIALIZED;
 
     uint8_t dat[6];
+    exit_code_t ec;
 
-    spi_write_reg(IMU963RA_FUNC_CFG_ACCESS, 0x40);
-    uint8_t status = spi_read_reg(IMU963RA_STATUS_MASTER);
+    ec = spi_write_reg(IMU963RA_FUNC_CFG_ACCESS, 0x40);
+    if (ec != EXIT_OK) return ec;
+
+    uint8_t status;
+    ec = spi_read_reg(IMU963RA_STATUS_MASTER, &status);
+    if (ec != EXIT_OK) { spi_write_reg(IMU963RA_FUNC_CFG_ACCESS, 0x00); return ec; }
+
     if (status & 0x01) {
-        spi_read_regs(IMU963RA_SENSOR_HUB_1, dat, 6);
+        ec = spi_read_regs(IMU963RA_SENSOR_HUB_1, dat, 6);
+        if (ec != EXIT_OK) { spi_write_reg(IMU963RA_FUNC_CFG_ACCESS, 0x00); return ec; }
 
         int16_t raw_x = (int16_t)((uint16_t)dat[1] << 8 | dat[0]);
         int16_t raw_y = (int16_t)((uint16_t)dat[3] << 8 | dat[2]);
