@@ -32,12 +32,20 @@ static bool initialized;
 static ws2812b_handle_t ws2812b_handle;
 static SemaphoreHandle_t matrix_mutex;
 
-static uint32_t xy_to_index(uint32_t row, uint32_t col)
+typedef uint32_t (*pixel_mapper_fn)(uint32_t row, uint32_t col, uint32_t cols);
+static pixel_mapper_fn pixel_mapper;
+
+static uint32_t map_progressive(uint32_t row, uint32_t col, uint32_t cols)
 {
-  if (matrix_cfg.topology == MATRIX_TOPO_SNAKE && (row & 1)) {
-    col = matrix_cfg.cols - 1 - col;
+  return row * cols + col;
+}
+
+static uint32_t map_snake(uint32_t row, uint32_t col, uint32_t cols)
+{
+  if (row & 1) {
+    col = cols - 1 - col;
   }
-  return row * matrix_cfg.cols + col;
+  return row * cols + col;
 }
 
 static uint32_t matrix_led_count(void)
@@ -97,6 +105,15 @@ exit_code_t matrix_init(const matrix_config_t *config)
   if (matrix_tx_len(led_count) > UINT16_MAX) return EXIT_NO_RESOURCE;
 
   matrix_cfg = *config;
+
+  switch (config->topology) {
+    case MATRIX_TOPO_SNAKE:
+      pixel_mapper = map_snake;
+      break;
+    default:
+      pixel_mapper = map_progressive;
+      break;
+  }
 
   memset(fb_a, 0, sizeof(fb_a));
   memset(fb_b, 0, sizeof(fb_b));
@@ -181,7 +198,7 @@ exit_code_t matrix_write_buffer(const uint32_t *data, uint32_t len)
   for (uint32_t row = 0; row < matrix_cfg.rows; row++) {
     for (uint32_t col = 0; col < matrix_cfg.cols; col++) {
       uint32_t logical_idx = row * matrix_cfg.cols + col;
-      uint32_t physical_idx = xy_to_index(row, col);
+      uint32_t physical_idx = pixel_mapper(row, col, matrix_cfg.cols);
       back_buffer[physical_idx] = data[logical_idx];
     }
   }
@@ -199,7 +216,7 @@ exit_code_t matrix_set_pixel(uint32_t row, uint32_t col, uint32_t rgb)
   }
 
   xSemaphoreTake(matrix_mutex, portMAX_DELAY);
-  back_buffer[xy_to_index(row, col)] = rgb;
+  back_buffer[pixel_mapper(row, col, matrix_cfg.cols)] = rgb;
   xSemaphoreGive(matrix_mutex);
 
   return EXIT_OK;

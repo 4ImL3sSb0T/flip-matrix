@@ -25,8 +25,9 @@ typedef enum {
     COLOR_GRAYSCALE     = 2,
 } color_scheme_t;
 
-static color_scheme_t s_color_scheme = COLOR_BLUE_GRADIENT;
+static color_scheme_t s_color_scheme = COLOR_RAINBOW;
 static float s_dt = SIM_DT;
+static float s_brightness = 0.2f;
 
 /* -------------------------------------------------------------------------- */
 /* 私有状态                                                                     */
@@ -76,7 +77,10 @@ static void display_update(const float *grid) {
     for (uint32_t row = 0; row < matrix_rows(); row++) {
         for (uint32_t col = 0; col < matrix_cols(); col++) {
             uint32_t rgb = apply_color(grid[row * matrix_cols() + col]);
-            matrix_set_pixel(row, col, rgb);
+            uint8_t r = (uint8_t)(((rgb >> 16) & 0xFF) * s_brightness);
+            uint8_t g = (uint8_t)(((rgb >>  8) & 0xFF) * s_brightness);
+            uint8_t b = (uint8_t)(( rgb        & 0xFF) * s_brightness);
+            matrix_set_pixel(row, col, matrix_rgb(r, g, b));
         }
     }
     matrix_write_async();
@@ -108,7 +112,7 @@ exit_code_t app_water_sim_init(void) {
     const matrix_config_t mcfg = {
         .rows      = VISIBLE_RES,
         .cols      = VISIBLE_RES,
-        .topology  = MATRIX_TOPO_SNAKE,
+        .topology  = MATRIX_TOPO_PROGRESSIVE,
     };
     exit_code_t ret = matrix_init(&mcfg);
     if (ret != EXIT_OK) return ret;
@@ -164,6 +168,12 @@ void app_water_sim_set_dt(float dt) {
     if (dt > 0.0f) s_dt = dt;
 }
 
+void app_water_sim_set_brightness(float percent) {
+    if (percent < 0.0f) percent = 0.0f;
+    if (percent > 1.0f) percent = 1.0f;
+    s_brightness = percent;
+}
+
 void app_water_sim_status(void) {
     static const char *scheme_names[] = {"blue", "rainbow", "grayscale"};
     logInfo("gravity_scale: %.2f", s_fluid ? s_fluid->gravity_scale : 0.0f);
@@ -173,5 +183,6 @@ void app_water_sim_status(void) {
             s_fluid ? s_fluid->flip_ratio : 0.0f);
     logInfo("dt: %.4f s (%.0f Hz)", s_dt, 1.0f / s_dt);
     logInfo("color: %s (%d)", scheme_names[s_color_scheme], (int)s_color_scheme);
+    logInfo("brightness: %.0f%%", s_brightness * 100.0f);
     logInfo("matrix: %lux%lu", matrix_rows(), matrix_cols());
 }
