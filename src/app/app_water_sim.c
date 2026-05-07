@@ -3,6 +3,7 @@
 #include "task.h"
 #include "service/cli/log/log.h"
 #include <math.h>
+#include "service/imu/imu_service.h"
 
 /* -------------------------------------------------------------------------- */
 /* 仿真默认参数                                                                 */
@@ -96,8 +97,17 @@ static void water_sim_task(void *param) {
 
     for (;;) {
         float dt = s_dt;
-        flip_step(s_fluid, dt, 0.0f, -1.0f);
+        vec3f acc, gyro, meg;
+        imu_service_get_sensor(&acc, &gyro, &meg);
+
+        float gx = acc.x;
+        float gy = acc.y;
+        float mag = sqrtf(gx * gx + gy * gy);
+        if (mag > 2.0f) { gx *= 2.0f / mag; gy *= 2.0f / mag; }
+
+        flip_step(s_fluid, dt, gx, gy);
         flip_get_led_grid(s_fluid, s_led_grid);
+
         display_update(s_led_grid);
         vTaskDelayUntil(&last_wake, pdMS_TO_TICKS((uint32_t)(dt * 1000.0f)));
     }
