@@ -143,7 +143,10 @@ void StartDefaultTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    HAL_GPIO_TogglePin(BLUE_GPIO_Port, BLUE_Pin);
+    HAL_GPIO_TogglePin(BLUE_GPIO_Port, BLUE_Pin);\
+    vec3f euler;
+    imu_service_get_euler(&euler);
+    logInfo("%f,%f,%f", euler.x, euler.y, euler.z);
     osDelay(200);
   }
   /* USER CODE END StartDefaultTask */

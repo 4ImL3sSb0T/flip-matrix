@@ -60,19 +60,19 @@
 
 static inline void cs_low(void)
 {
-    HAL_GPIO_WritePin(SPI2_CS_GPIO_Port, SPI2_CS_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(IMU_CS_GPIO_Port, IMU_CS_Pin, GPIO_PIN_RESET);
 }
 
 static inline void cs_high(void)
 {
-    HAL_GPIO_WritePin(SPI2_CS_GPIO_Port, SPI2_CS_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(IMU_CS_GPIO_Port, IMU_CS_Pin, GPIO_PIN_SET);
 }
 
 static exit_code_t spi_write_reg(uint8_t reg, uint8_t data)
 {
     uint8_t tx[2] = { reg | IMU963RA_SPI_W, data };
     cs_low();
-    HAL_StatusTypeDef st = HAL_SPI_Transmit(&hspi2, tx, 2, HAL_MAX_DELAY);
+    HAL_StatusTypeDef st = HAL_SPI_Transmit(&hspi6, tx, 2, HAL_MAX_DELAY);
     cs_high();
     return (st == HAL_OK) ? EXIT_OK : EXIT_HW_FAILURE;
 }
@@ -82,9 +82,9 @@ static exit_code_t spi_read_reg(uint8_t reg, uint8_t *val)
     uint8_t tx = reg | IMU963RA_SPI_R;
     uint8_t rx = 0;
     cs_low();
-    HAL_StatusTypeDef st = HAL_SPI_Transmit(&hspi2, &tx, 1, HAL_MAX_DELAY);
+    HAL_StatusTypeDef st = HAL_SPI_Transmit(&hspi6, &tx, 1, HAL_MAX_DELAY);
     if (st != HAL_OK) { cs_high(); return EXIT_HW_FAILURE; }
-    st = HAL_SPI_Receive(&hspi2, &rx, 1, HAL_MAX_DELAY);
+    st = HAL_SPI_Receive(&hspi6, &rx, 1, HAL_MAX_DELAY);
     cs_high();
     if (st != HAL_OK) return EXIT_HW_FAILURE;
     *val = rx;
@@ -95,9 +95,9 @@ static exit_code_t spi_read_regs(uint8_t reg, uint8_t *buf, uint8_t len)
 {
     uint8_t tx = reg | IMU963RA_SPI_R;
     cs_low();
-    HAL_StatusTypeDef st = HAL_SPI_Transmit(&hspi2, &tx, 1, HAL_MAX_DELAY);
+    HAL_StatusTypeDef st = HAL_SPI_Transmit(&hspi6, &tx, 1, HAL_MAX_DELAY);
     if (st != HAL_OK) { cs_high(); return EXIT_HW_FAILURE; }
-    st = HAL_SPI_Receive(&hspi2, buf, len, HAL_MAX_DELAY);
+    st = HAL_SPI_Receive(&hspi6, buf, len, HAL_MAX_DELAY);
     cs_high();
     return (st == HAL_OK) ? EXIT_OK : EXIT_HW_FAILURE;
 }

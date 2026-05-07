@@ -28,6 +28,27 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN TD */
 
+void hard_fault_capture(uint32_t *sp)
+{
+  volatile uint32_t r0 = sp[0];
+  volatile uint32_t r1 = sp[1];
+  volatile uint32_t r2 = sp[2];
+  volatile uint32_t r3 = sp[3];
+  volatile uint32_t r12 = sp[4];
+  volatile uint32_t lr = sp[5];
+  volatile uint32_t pc = sp[6];
+  volatile uint32_t psr = sp[7];
+  volatile uint32_t cfsr = SCB->CFSR;
+  volatile uint32_t hfsr = SCB->HFSR;
+  volatile uint32_t mmfar = SCB->MMFAR;
+  volatile uint32_t bfar = SCB->BFAR;
+  (void)r0; (void)r1; (void)r2; (void)r3;
+  (void)r12; (void)lr; (void)pc; (void)psr;
+  (void)cfsr; (void)hfsr; (void)mmfar; (void)bfar;
+  __asm volatile ("bkpt #0");
+  while (1) {}
+}
+
 /* USER CODE END TD */
 
 /* Private define ------------------------------------------------------------*/
