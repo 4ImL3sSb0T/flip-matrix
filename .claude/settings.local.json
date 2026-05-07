@@ -12,7 +12,8 @@
       "Bash(python *)",
       "mcp__dashscope-github__search_repositories",
       "mcp__dashscope-github__search_code",
-      "mcp__dashscope-github__get_file_contents"
+      "mcp__dashscope-github__get_file_contents",
+      "mcp__dashscope-github__list_issues"
     ],
     "additionalDirectories": [
       "D:\\Project\\OpenSoucre\\letter-shell"
