@@ -165,6 +165,10 @@ standard names. */
 
 /* USER CODE BEGIN Defines */
 /* Section where parameter definitions can be added (for instance, to override default ones in FreeRTOS.h) */
+#include <stdio.h>
+extern void traceISR_ENTER(void);
+extern void traceISR_EXIT(void);
+extern void traceISR_EXIT_TO_SCHEDULER(void);
 #include "stm32h7xx.h"
 #define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS() \
     CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk; \
