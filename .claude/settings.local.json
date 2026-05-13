@@ -15,7 +15,8 @@
       "mcp__dashscope-github__get_file_contents",
       "mcp__dashscope-github__list_issues",
       "Bash(awk '{size=$3; obj=$4; split\\(obj,a,\"/\"\\); file=a[length\\(a\\)]; sizes[file]+=strtonum\\(size\\)} END {for\\(f in sizes\\) printf \"%8d %s\\\\n\", sizes[f], f}')",
-      "Bash(Test-Path *)"
+      "Bash(Test-Path *)",
+      "WebFetch(domain:github.com)"
     ],
     "additionalDirectories": [
       "D:\\Project\\OpenSoucre\\letter-shell",

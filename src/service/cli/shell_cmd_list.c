@@ -32,6 +32,20 @@ extern void shellClear(void);
 extern int shellExecute(int argc, char *argv[]);
 #endif
 
+extern int cpu_usage(int argc, char *argv[]);
+extern int wsim_gravity(int argc, char *argv[]);
+extern int wsim_solver(int argc, char *argv[]);
+extern int wsim_color(int argc, char *argv[]);
+extern int wsim_dt(int argc, char *argv[]);
+extern int wsim_status(int argc, char *argv[]);
+extern int mtrx_init(int argc, char *argv[]);
+extern int mtrx_deinit(int argc, char *argv[]);
+extern int mtrx_set(int argc, char *argv[]);
+extern int mtrx_fill(int argc, char *argv[]);
+extern int mtrx_clear(int argc, char *argv[]);
+extern int mtrx_show(int argc, char *argv[]);
+extern int mtrx_info(int argc, char *argv[]);
+
 SHELL_AGENCY_FUNC(shellRun, shellGetCurrent(), (const char *)p1);
 
 
@@ -90,6 +104,38 @@ const ShellCommand shellCommandList[] =
     SHELL_CMD_ITEM(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN)|SHELL_CMD_DISABLE_RETURN,
                    exec, shellExecute, execute function undefined),
 #endif
+
+    /* cpu */
+    SHELL_CMD_ITEM(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN)|SHELL_CMD_DISABLE_RETURN,
+                   cpu, cpu_usage, show task CPU usage),
+
+    /* water simulation */
+    SHELL_CMD_ITEM(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN)|SHELL_CMD_DISABLE_RETURN,
+                   wsim_gravity, wsim_gravity, set gravity scale\r\nwsim_gravity <scale>),
+    SHELL_CMD_ITEM(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN)|SHELL_CMD_DISABLE_RETURN,
+                   wsim_solver, wsim_solver, set solver quality\r\nwsim_solver <push> <pressure> <flip_ratio>),
+    SHELL_CMD_ITEM(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN)|SHELL_CMD_DISABLE_RETURN,
+                   wsim_color, wsim_color, set color scheme\r\nwsim_color <0=blue|1=rainbow|2=gray>),
+    SHELL_CMD_ITEM(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN)|SHELL_CMD_DISABLE_RETURN,
+                   wsim_dt, wsim_dt, set simulation timestep\r\nwsim_dt <seconds>),
+    SHELL_CMD_ITEM(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN)|SHELL_CMD_DISABLE_RETURN,
+                   wsim_status, wsim_status, show water sim parameters),
+
+    /* matrix */
+    SHELL_CMD_ITEM(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN)|SHELL_CMD_DISABLE_RETURN,
+                   mtrx_init, mtrx_init, init matrix\r\nmtrx_init <rows> <cols> [topo]),
+    SHELL_CMD_ITEM(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN)|SHELL_CMD_DISABLE_RETURN,
+                   mtrx_deinit, mtrx_deinit, deinit matrix),
+    SHELL_CMD_ITEM(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN)|SHELL_CMD_DISABLE_RETURN,
+                   mtrx_set, mtrx_set, set pixel color\r\nmtrx_set <row> <col> <r> <g> <b>),
+    SHELL_CMD_ITEM(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN)|SHELL_CMD_DISABLE_RETURN,
+                   mtrx_fill, mtrx_fill, fill matrix with color\r\nmtrx_fill <r> <g> <b>),
+    SHELL_CMD_ITEM(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN)|SHELL_CMD_DISABLE_RETURN,
+                   mtrx_clear, mtrx_clear, clear all pixels),
+    SHELL_CMD_ITEM(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN)|SHELL_CMD_DISABLE_RETURN,
+                   mtrx_show, mtrx_show, flush buffer to LEDs),
+    SHELL_CMD_ITEM(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN)|SHELL_CMD_DISABLE_RETURN,
+                   mtrx_info, mtrx_info, show matrix info),
 };
 
 
