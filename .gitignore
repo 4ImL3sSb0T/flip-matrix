@@ -90,3 +90,4 @@ build/
 compile_commands.json
 .cache/
 
+MDK-ARM/JLinkLog.txt
